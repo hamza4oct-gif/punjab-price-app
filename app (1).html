@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Punjab Price App</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Arial, sans-serif; }
+.hidden { display: none !important; }
+
+.spa-page { display: none; }
+.spa-page.active { display: block; }
+
+#page-home {
+    font-family: Arial, sans-serif;
+    background: #f5f7fb;
+    padding-bottom: 70px;
+    transition: background 0.25s ease, color 0.25s ease;
+}
+#page-home header {
+    background: #1e40af;
+    color: white;
+    padding: 15px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: bold;
+    position: relative;
+    transition: background 0.25s ease;
+}
+#page-home .dark-toggle {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.18);
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+#page-home .dark-toggle:active { transform: translateY(-50%) scale(0.9); }
+#page-home .dark-toggle:hover { background: rgba(255, 255, 255, 0.28); }
+#page-home .container {
+    padding: 20px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+#page-home input,
+#page-home select {
+    width: 90%;
+    max-width: 400px;
+    padding: 12px;
+    margin-top: 20px;
+    border-radius: 10px;
+    border: 1px solid #ccc;
+    font-size: 16px;
+    box-sizing: border-box;
+    text-align: center;
+    transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+}
+#page-home button {
+    margin-top: 15px;
+    padding: 12px 20px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    width: 90%;
+    max-width: 400px;
+    transition: all 0.2s ease;
+}
+#page-home button:active { transform: scale(0.90); background: #1d4ed8; }
+#page-home button:hover { background: #2563eb; }
+#page-home .card {
+    background: white;
+    padding: 20px;
+    margin-top: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    font-size: 18px;
+    line-height: 1.6;
+    min-height: 50px;
+    width: 90%;
+    max-width: 400px;
+    box-sizing: border-box;
+    text-align: center;
+    transition: background 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+}
+#page-home .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: white;
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 0;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    transition: background 0.25s ease;
+}
+#page-home .bottom-nav button {
+    background: none;
+    border: none;
+    font-size: 13px;
+    color: #1e40af;
+    cursor: pointer;
+    margin-top: 0;
+    padding: 5px;
+    width: auto;
+}
+#page-home .calc-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 15px;
+    text-align: left;
+}
+#page-home .calc-remove {
+    background: #dc2626;
+    margin: 0;
+    padding: 4px 10px;
+    width: auto;
+    font-size: 13px;
+    border-radius: 6px;
+}
+#page-home .calc-total { margin-top: 12px; font-size: 19px; color: #1e40af; }
+#page-home .calc-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+}
+#page-home .calc-grid .calc-btn {
+    width: 100%;
+    max-width: none;
+    margin-top: 0;
+    padding: 16px 0;
+    font-size: 18px;
+    background: #f1f5f9;
+    color: #1e293b;
+    border-radius: 10px;
+}
+#page-home .calc-grid .calc-btn:active { transform: scale(0.93); }
+#page-home .calc-grid .calc-op { background: #dbeafe; color: #1e40af; }
+#page-home .calc-grid .calc-fn { background: #fee2e2; color: #dc2626; }
+#page-home .calc-grid .calc-eq { background: #16a34a; color: white; }
+
+#page-home.dark-mode { background: #0f172a; color: #e2e8f0; }
+#page-home.dark-mode header { background: #1e293b; }
+#page-home.dark-mode input,
+#page-home.dark-mode select { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+#page-home.dark-mode .card { background: #1e293b; color: #e2e8f0; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4); }
+#page-home.dark-mode .bottom-nav { background: #1e293b; box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.4); }
+#page-home.dark-mode .bottom-nav button { color: #93c5fd; }
+#page-home.dark-mode .calc-row { border-bottom-color: #334155; }
+#page-home.dark-mode .calc-grid .calc-btn { background: #334155; color: #e2e8f0; }
+#page-home.dark-mode .calc-grid .calc-op { background: #1e3a5f; color: #93c5fd; }
+#page-home.dark-mode .calc-grid .calc-fn { background: #7f1d1d; color: #fecaca; }
+#page-home.dark-mode .calc-grid .calc-eq { background: #15803d; color: white; }
+
+#page-shopkeeper {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #1e40af, #3b82f6);
+    min-height: 100vh;
+    padding: 20px 0 40px;
+}
+#page-shopkeeper .container { max-width: 420px; margin: 0 auto; padding: 0 16px; }
+#page-shopkeeper .card {
+    background: white;
+    padding: 22px;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    margin-top: 16px;
+}
+#page-shopkeeper h2 { color: #1e40af; margin: 0 0 4px; }
+#page-shopkeeper .subtitle { color: #666; font-size: 13px; margin-bottom: 16px; }
+#page-shopkeeper label { display: block; font-size: 13px; color: #555; margin-top: 12px; margin-bottom: 4px; }
+#page-shopkeeper input {
+    width: 100%;
+    padding: 11px;
+    border-radius: 10px;
+    border: 1px solid #ccc;
+    font-size: 15px;
+    box-sizing: border-box;
+}
+#page-shopkeeper button {
+    width: 100%;
+    padding: 13px;
+    margin-top: 18px;
+    background: #1e40af;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    cursor: pointer;
+}
+#page-shopkeeper button:active { transform: scale(0.97); }
+#page-shopkeeper .product-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+#page-shopkeeper .product-row input { flex: 1; }
+#page-shopkeeper .remove-row { background: #dc2626; width: auto; margin: 0; padding: 8px 12px; border-radius: 8px; }
+#page-shopkeeper .add-row-btn { background: #e5e7eb; color: #333; margin-top: 10px; font-size: 14px; padding: 10px; }
+#page-shopkeeper #msg { margin-top: 14px; font-size: 14px; font-weight: bold; text-align: center; }
+#page-shopkeeper .note { font-size: 12px; color: #888; margin-top: 14px; text-align: center; line-height: 1.5; }
+#page-shopkeeper .location-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 14px; padding: 16px; margin-top: 20px; }
+#page-shopkeeper .location-label { font-size: 14.5px; color: #1e3a8a; margin: 0 0 12px; line-height: 1.5; }
+#page-shopkeeper .location-detect-btn {
+    width: 100%; padding: 13px; margin-top: 0; background: #2563eb; color: white; border: none;
+    border-radius: 12px; font-size: 15.5px; font-weight: 600; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; gap: 8px;
+}
+#page-shopkeeper .location-detect-btn:hover { background: #1d4ed8; }
+#page-shopkeeper .location-detect-btn:active { transform: scale(0.98); }
+#page-shopkeeper .location-manual-link { display: block; margin-top: 12px; font-size: 13.5px; color: #1e40af; text-decoration: underline; cursor: pointer; }
+#page-shopkeeper .location-manual-wrap { margin-top: 12px; }
+#page-shopkeeper .file-upload-wrap { border: 2px dashed #cbd5e1; border-radius: 12px; padding: 14px; margin-top: 8px; background: #fafbfe; }
+#page-shopkeeper .file-upload-wrap input[type="file"] { border: none; padding: 0; width: 100%; font-size: 14px; }
+#page-shopkeeper .dash-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#page-shopkeeper .dash-title { margin: 0; font-size: 22px; font-weight: 800; color: #1e40af; display: flex; align-items: center; gap: 8px; }
+#page-shopkeeper .dash-badge { background: #fef3c7; color: #92400e; font-weight: 700; font-size: 12.5px; padding: 6px 14px; border-radius: 20px; white-space: nowrap; }
+#page-shopkeeper .dash-loading { color: #888; margin-top: 14px; font-size: 14px; }
+#page-shopkeeper .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+#page-shopkeeper .dash-box { background: #f8fafc; border: 1px solid #e5e9f5; border-radius: 14px; padding: 18px 10px; text-align: center; }
+#page-shopkeeper .dash-box .num { font-size: 26px; font-weight: 800; color: #1e40af; }
+#page-shopkeeper .dash-box .label { font-size: 13px; color: #555; margin-top: 4px; }
+#page-shopkeeper .dash-trust { margin-top: 20px; font-size: 15px; color: #333; font-weight: 600; }
+#page-shopkeeper .dash-progress-track { background: #e5e7eb; border-radius: 20px; height: 10px; margin-top: 10px; overflow: hidden; }
+#page-shopkeeper .dash-progress-fill { background: #1e40af; height: 100%; width: 0%; border-radius: 20px; transition: width 0.4s ease; }
+#page-shopkeeper .dash-last { margin-top: 20px; font-size: 15px; color: #333; font-weight: 600; }
+#page-shopkeeper .dash-last .value { color: #888; font-weight: 400; margin-top: 4px; }
+#page-shopkeeper .dash-recent-heading { margin-top: 20px; font-weight: 700; font-size: 15px; color: #1f2937; }
+#page-shopkeeper .dash-recent-list { margin-top: 8px; }
+#page-shopkeeper .dash-recent-item { padding: 9px 0; border-bottom: 1px solid #f0f2f8; font-size: 14px; color: #333; }
+#page-shopkeeper .dash-recent-item:last-child { border-bottom: none; }
+#page-shopkeeper .load-more-btn { background: #e5e7eb; color: #333; margin-top: 12px; width: 100%; padding: 12px; border-radius: 10px; border: none; font-size: 14px; cursor: pointer; display: none; }
+
+#page-admin {
+    font-family: 'Segoe UI', Roboto, 'Inter', Arial, sans-serif;
+    background: #eef1f8;
+    padding-bottom: 50px;
+    color: #1f2937;
+}
+#page-admin header {
+    background: linear-gradient(135deg, #1e3a8a, #2563eb);
+    color: white;
+    padding: 18px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 12px rgba(30,58,138,0.25);
+}
+#page-admin header .title { font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }
+#page-admin header .title small { display: block; font-size: 11px; font-weight: 400; opacity: 0.75; margin-top: 2px; }
+#page-admin header span.tag { font-size: 12px; font-weight: 500; opacity: 0.9; background: rgba(255,255,255,0.15); padding: 4px 10px; border-radius: 20px; }
+#page-admin .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+#page-admin .stats-bar { display: flex; gap: 10px; margin-top: 16px; }
+#page-admin .stat-box { flex: 1; background: white; border-radius: 14px; padding: 14px; text-align: center; box-shadow: 0 2px 8px rgba(30,58,138,0.08); border: 1px solid #e5e9f5; }
+#page-admin .stat-box .num { font-size: 22px; font-weight: 700; color: #1e3a8a; }
+#page-admin .stat-box .label { font-size: 11px; color: #6b7280; margin-top: 2px; }
+#page-admin .card { background: white; padding: 20px; margin-top: 16px; border-radius: 14px; box-shadow: 0 2px 10px rgba(30,58,138,0.08); border: 1px solid #e5e9f5; }
+#page-admin .card h3 { margin-top: 0; color: #1e3a8a; font-size: 16px; display: flex; align-items: center; gap: 6px; }
+#page-admin label { display: block; font-size: 12.5px; color: #6b7280; margin-top: 12px; margin-bottom: 5px; font-weight: 500; }
+#page-admin input { width: 100%; padding: 11px 12px; border-radius: 9px; border: 1.5px solid #e2e6f0; font-size: 15px; background: #fafbfe; transition: border-color 0.15s ease; }
+#page-admin input:focus { outline: none; border-color: #2563eb; background: white; }
+#page-admin button { margin-top: 16px; padding: 12px 18px; background: #2563eb; color: white; border: none; border-radius: 9px; cursor: pointer; width: 100%; font-size: 15px; font-weight: 600; letter-spacing: 0.2px; transition: background 0.15s ease, transform 0.1s ease; }
+#page-admin button:hover { background: #1d4ed8; }
+#page-admin button:active { transform: scale(0.97); }
+#page-admin button.secondary { background: #eef1f8; color: #1e3a8a; margin-top: 8px; border: 1.5px solid #dde3f3; }
+#page-admin button.secondary:hover { background: #e2e7f7; }
+#page-admin button.danger { background: #dc2626; }
+#page-admin button.danger:hover { background: #b91c1c; }
+#page-admin button.small { width: auto; padding: 7px 14px; font-size: 13px; margin-top: 0; }
+#page-admin .logout-btn { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.4); color: white; width: auto; padding: 7px 14px; font-size: 12px; margin: 0; font-weight: 500; }
+#page-admin .logout-btn:hover { background: rgba(255,255,255,0.22); }
+#page-admin .msg { margin-top: 10px; font-size: 13.5px; text-align: center; font-weight: 500; }
+#page-admin .product-row { border-bottom: 1px solid #f0f2f8; padding: 12px 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+#page-admin .product-row:last-child { border-bottom: none; }
+#page-admin .product-info { font-size: 14px; line-height: 1.5; }
+#page-admin .product-info b { color: #1e3a8a; }
+#page-admin .row-actions { display: flex; gap: 6px; }
+#page-admin .edit-box input { margin-bottom: 8px; }
+#page-admin #productList { margin-top: 10px; }
+#page-admin .count-badge { font-size: 12.5px; color: #6b7280; margin-top: 8px; font-weight: 500; }
+#page-admin p.hint { font-size: 12.5px; color: #6b7280; line-height: 1.6; background: #f5f8ff; padding: 10px 12px; border-radius: 9px; border: 1px solid #e5e9f5; }
+
+#page-login { background: linear-gradient(135deg, #1e40af, #3b82f6); min-height: 100vh; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; }
+#page-login .login-hero { text-align: center; padding: 44px 24px 28px; color: white; }
+#page-login .login-logo { width: 84px; height: 84px; margin: 0 auto 18px; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35); border-radius: 22px; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 800; letter-spacing: 0.5px; }
+#page-login .login-title { margin: 0 0 10px; font-size: 26px; font-weight: 800; }
+#page-login .login-subtitle { margin: 0; font-size: 14.5px; color: rgba(255,255,255,0.85); }
+#page-login .login-sheet { background: white; border-radius: 28px 28px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.15); padding: 26px 22px 34px; flex: 1; max-width: 480px; width: 100%; margin: 0 auto; box-sizing: border-box; }
+#page-login .login-tabs { display: flex; background: #eef1f8; border-radius: 14px; padding: 5px; gap: 5px; }
+#page-login .login-tab { flex: 1; border: none; background: transparent; padding: 12px 0; border-radius: 10px; font-size: 15px; font-weight: 700; color: #64748b; cursor: pointer; margin: 0; width: auto; transition: all 0.15s ease; }
+#page-login .login-tab.active { background: #1e40af; color: white; box-shadow: 0 4px 10px rgba(30,64,175,0.3); }
+#page-login .login-label { display: block; font-size: 14px; font-weight: 700; color: #1f2937; margin: 20px 0 8px; }
+#page-login input.login-input { width: 100%; padding: 14px 16px; border-radius: 12px; border: 1.5px solid #e2e6f0; font-size: 15px; box-sizing: border-box; outline: none; background: #fafbfe; margin: 0; }
+#page-login input.login-input:focus { border-color: #2563eb; background: white; }
+#page-login .login-password-wrap { position: relative; }
+#page-login .login-password-wrap input.login-input { padding-right: 62px; }
+#page-login .login-show-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #1e40af; font-size: 14px; font-weight: 700; cursor: pointer; padding: 6px 8px; width: auto; margin: 0; }
+#page-login .login-forgot-row { text-align: right; margin-top: 10px; }
+#page-login .login-forgot-link { color: #1e40af; font-size: 13.5px; font-weight: 600; text-decoration: none; cursor: pointer; }
+#page-login .login-main-btn { width: 100%; padding: 15px; margin-top: 22px; background: #1e40af; color: white; border: none; border-radius: 14px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background 0.15s ease, transform 0.1s ease; }
+#page-login .login-main-btn:hover { background: #1d4ed8; }
+#page-login .login-main-btn:active { transform: scale(0.98); }
+#page-login .login-divider { display: flex; align-items: center; text-align: center; color: #9ca3af; font-size: 13px; margin: 22px 0; }
+#page-login .login-divider::before, #page-login .login-divider::after { content: ""; flex: 1; border-bottom: 1px solid #e5e7eb; }
+#page-login .login-divider span { padding: 0 14px; }
+#page-login .login-google-btn { width: 100%; padding: 13px; background: white; color: #1f2937; border: 1.5px solid #e2e6f0; border-radius: 14px; font-size: 15px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0; }
+#page-login .login-google-btn:hover { background: #f9fafb; }
+#page-login #loginPageMsg { margin-top: 16px; font-size: 14px; font-weight: bold; text-align: center; }
+
+/* ======================================================================
+   SPA VISIBILITY FIX (the only functional change in this file)
+   #page-login sets "display: flex" directly on its own ID above. Since
+   an ID selector is more specific than the ".spa-page"/".spa-page.active"
+   class rules near the top, that "display: flex" was always winning,
+   even when #page-login didn't have the "active" class — so the login
+   page (and its background) stayed visible/occupying space underneath
+   whatever page was actually open, and appeared when scrolling.
+   These rules use equal specificity to each page's own ID rule and are
+   placed after them in the stylesheet, so they reliably win the cascade
+   and guarantee only the page with the "active" class is ever visible.
+   ====================================================================== */
+#page-home, #page-shopkeeper, #page-admin, #page-login { display: none; }
+#page-home.active { display: block; }
+#page-shopkeeper.active { display: block; }
+#page-admin.active { display: block; }
+#page-login.active { display: flex; }
+</style>
+</head>
+<body>
+
+<div id="page-home" class="spa-page active">
+    <header>
+        Punjab Price App
+        <button class="dark-toggle" id="darkToggleBtn" onclick="toggleDarkMode()" aria-label="Toggle dark mode">🌙</button>
+    </header>
+
+    <div class="container">
+        <h2>Search Product Price</h2>
+        <input type="text" id="inputBox" placeholder="یہاں لکھیں، مثلاً sugar, flour" dir="auto">
+        <button onclick="startSearch()">Search</button>
+
+        <div class="card" id="result">
+            نتائج یہاں نظر آئیں گے
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <button onclick="showPage('home')">🏠 Home</button>
+        <button onclick="showPage('search')">🔍 Search</button>
+        <button onclick="showPage('calculator')">🧮 Calculator</button>
+        <button onclick="spaShowPage('shopkeeper')">👤 Profile</button>
+        <button onclick="spaShowPage('login')">🔑 Login</button>
+    </div>
+</div>
+
+<div id="page-shopkeeper" class="spa-page">
+  <div class="container">
+    <div class="card">
+      <h2>🏪 Shopkeeper Panel</h2>
+      <p class="subtitle">Apni dukaan ka data submit karen — admin ke check karne ke baad ye website per live ho jayega.</p>
+
+      <label>Dukaan ka naam</label>
+      <input type="text" id="shopName" placeholder="jaise: Ikbal Store">
+
+      <label>Aapka naam (optional)</label>
+      <input type="text" id="ownerName" placeholder="jaise: Muhammad Ikbal">
+
+      <label>Phone number (optional)</label>
+      <input type="text" id="phoneNumber" placeholder="jaise: 03001234567">
+
+      <label>Dukaan ka address (optional)</label>
+      <input type="text" id="shopAddress" placeholder="jaise: Main Bazaar, Lahore">
+
+      <div class="location-box">
+        <p class="location-label" id="locationText">📍 <b>Location:</b> Detect nahi hui abhi tak</p>
+        <button type="button" class="location-detect-btn" onclick="detectLocation()">📡 Meri Location Detect Karen</button>
+        <a class="location-manual-link" id="manualLocationLink" onclick="showManualLocation()">Ya location khud likhen</a>
+        <div class="location-manual-wrap hidden" id="manualLocationWrap">
+          <input type="text" id="manualLocationInput" placeholder="jaise: Main Bazaar, Lahore">
+        </div>
+      </div>
+
+      <label style="margin-top:18px;">Dukaan ki photo / logo (optional)</label>
+      <div class="file-upload-wrap">
+        <input type="file" id="shopPhoto" accept="image/*">
+      </div>
+
+      <label style="margin-top:18px;"><b>Products aur unki price:</b></label>
+      <div id="productRows">
+        <div class="product-row">
+          <input type="text" placeholder="Product naam" class="prodName">
+          <input type="text" placeholder="Price" class="prodPrice">
+        </div>
+      </div>
+      <button class="add-row-btn" onclick="addProductRow()">+ Ek aur product add karen</button>
+
+      <button onclick="submitShopData()">Submit Karen</button>
+      <div id="msg"></div>
+
+      <p class="note">
+        Aapka data seedha live nahi hota — pehle admin check karega, phir website per dikhega.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="dash-header">
+        <h2 class="dash-title">📊 Mera Dashboard</h2>
+        <span class="dash-badge">Pending</span>
+      </div>
+      <div class="dash-loading" id="dashLoading">Loading...</div>
+
+      <div class="dash-grid">
+        <div class="dash-box">
+          <div class="num" id="statTotalSub">-</div>
+          <div class="label">Total Submitted</div>
+        </div>
+        <div class="dash-box">
+          <div class="num" id="statApproved">-</div>
+          <div class="label">Approved</div>
+        </div>
+        <div class="dash-box">
+          <div class="num" id="statPending">-</div>
+          <div class="label">Pending</div>
+        </div>
+        <div class="dash-box">
+          <div class="num" id="statRejected">-</div>
+          <div class="label">Rejected</div>
+        </div>
+      </div>
+
+      <div class="dash-trust">Trust Score: <span id="trustScoreText">-</span> / 100</div>
+      <div class="dash-progress-track">
+        <div class="dash-progress-fill" id="trustProgressFill"></div>
+      </div>
+
+      <div class="dash-last">
+        Last Submission
+        <div class="value" id="lastSubmissionText">-</div>
+      </div>
+
+      <div class="dash-recent-heading">Recent Products</div>
+      <div class="dash-recent-list" id="recentProductsList"></div>
+      <button type="button" class="load-more-btn" id="loadMoreBtn" onclick="loadMoreRecent()">Aur load karen</button>
+    </div>
+  </div>
+</div>
+
+<div id="page-admin" class="spa-page">
+    <header>
+        <div class="title">🛡️ Admin Panel<small>Punjab Price App</small></div>
+        <span class="tag" id="userTag"></span>
+        <button class="logout-btn hidden" id="logoutBtn" onclick="doLogout()">Logout</button>
+    </header>
+
+    <div class="container">
+        <div class="card" id="loginCard">
+            <h3>🔐 Admin Login</h3>
+            <label>Email</label>
+            <input type="email" id="loginEmail" placeholder="apna email likhen">
+            <label>Password</label>
+            <input type="password" id="loginPassword" placeholder="apna password likhen">
+            <button onclick="doLogin()">Login</button>
+            <button class="secondary" onclick="doGoogleLogin()" style="margin-top:8px;">Sign in with Google</button>
+            <div class="msg" id="loginMsg"></div>
+        </div>
+
+        <div id="adminSection" class="hidden">
+            <div class="stats-bar">
+                <div class="stat-box">
+                    <div class="num" id="statTotal">—</div>
+                    <div class="label">Total Products</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>➕ Naya Product Add Karein</h3>
+                <label>Product Name</label>
+                <input type="text" id="newName" placeholder="jaise: Atta">
+                <label>Price (Rs)</label>
+                <input type="text" id="newPrice" placeholder="jaise: 2800">
+                <label>Shop / Market</label>
+                <input type="text" id="newShop" placeholder="jaise: Ikbal Store">
+                <button onclick="addProduct()">Save Product</button>
+                <div class="msg" id="addMsg"></div>
+            </div>
+
+            <div class="card">
+                <h3>📁 Bulk Upload (Excel/CSV se)</h3>
+                <p class="hint">
+                    Google Sheets ya Excel mein 3 columns banayen: <b>name</b>, <b>price</b>, <b>shop</b>. Phir File → Download → <b>CSV</b> karke wo file yahan select karen.
+                </p>
+                <input type="file" id="csvFile" accept=".csv" style="margin-top:12px;">
+                <button onclick="bulkUpload()">CSV Upload Karen</button>
+                <div class="msg" id="bulkMsg"></div>
+            </div>
+
+            <div class="card">
+                <h3>🏛️ Sarkari Rates Update (PBS Excel)</h3>
+                <p class="hint">
+                    <a href="https://www.pbs.gov.pk/spi" target="_blank" style="color: #2563eb; font-weight: 600;">Yahan Click Karke</a> PBS ki weekly SPI Excel file download karen، phir usey nichey select karke update ka button dabayen۔
+                </p>
+                <input type="file" id="pbsExcelFile" accept=".xlsx, .xls" style="margin-top:12px;">
+                <button onclick="processPbsExcel()" style="background:#15803d;">Upload &amp; Update Official Rates</button>
+                <div class="msg" id="pbsMsg"></div>
+                <div id="pbsLog" style="font-size:12px; color:#555; margin-top:8px; max-height:160px; overflow-y:auto; background: #f9fafb; padding: 5px; border-radius: 6px;"></div>
+            </div>
+
+            <div class="card">
+                <h3>📦 Sab Products</h3>
+                <input type="text" id="searchBox" placeholder="Product search karein..." oninput="renderList()">
+                <div class="count-badge" id="countBadge"></div>
+                <div id="productList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="page-login" class="spa-page">
+  <div class="login-hero">
+    <div class="login-logo">PP</div>
+    <h1 class="login-title">Punjab Price App</h1>
+    <p class="login-subtitle">Apna account access karne ke liye sign in karen</p>
+  </div>
+
+  <div class="login-sheet">
+    <div class="login-tabs">
+      <button type="button" id="loginTabBtn" class="login-tab active" onclick="switchAuthTab('login')">Login</button>
+      <button type="button" id="registerTabBtn" class="login-tab" onclick="switchAuthTab('register')">Create Account</button>
+    </div>
+
+    <label class="login-label">Email</label>
+    <input type="email" id="email" class="login-input" placeholder="apna@email.com">
+
+    <label class="login-label">Password</label>
+    <div class="login-password-wrap">
+      <input type="password" id="password" class="login-input" placeholder="••••••••">
+      <button type="button" id="togglePasswordBtn" class="login-show-btn" onclick="togglePasswordVisibility()">Show</button>
+    </div>
+
+    <div class="login-forgot-row">
+      <a class="login-forgot-link" onclick="forgotPassword()">Password bhool gaye?</a>
+    </div>
+
+    <button type="button" id="authActionBtn" class="login-main-btn" onclick="handleAuthAction()">Login</button>
+
+    <div class="login-divider"><span>ya</span></div>
+
+    <button type="button" class="login-google-btn" onclick="loginWithGoogle()">
+      <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.4-.4-3.5z"/>
+        <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4c-7.5 0-14 4.1-17.7 10.7z"/>
+        <path fill="#4CAF50" d="M24 44c5.4 0 10.3-2.1 14-5.4l-6.5-5.4C29.5 34.9 26.9 36 24 36c-5.3 0-9.7-3.1-11.3-7.9l-6.6 5.1C9.9 39.9 16.4 44 24 44z"/>
+        <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.7l6.5 5.4C40.8 36.5 44 30.8 44 24c0-1.2-.1-2.4-.4-3.5z"/>
+      </svg>
+      Continue with Google
+    </button>
+
+    <p id="loginPageMsg"></p>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyAMpO6DANrbzbDNYtz75CTIvpSsiLb-8rM",
+    authDomain: "punjabprice-2efb3.firebaseapp.com",
+    projectId: "punjabprice-2efb3",
+    storageBucket: "punjabprice-2efb3.appspot.com",
+    messagingSenderId: "385562560481",
+    appId: "1:385562560481:web:79432a4ae8f6aeca8334a0"
+};
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.firestore();
+const auth = firebase.auth();
+const storage = firebase.storage();
+
+function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+const SPA_PAGES = ['home', 'shopkeeper', 'admin', 'login'];
+
+function spaShowPage(pageName) {
+    if (!SPA_PAGES.includes(pageName)) pageName = 'home';
+
+    SPA_PAGES.forEach((p) => {
+        const el = document.getElementById('page-' + p);
+        if (el) el.classList.toggle('active', p === pageName);
+    });
+
+    if (window.location.hash !== '#/' + pageName) {
+        window.location.hash = '/' + pageName;
+    }
+    window.scrollTo(0, 0);
+}
+
+function spaRouteFromHash() {
+    const hash = window.location.hash.replace('#/', '').replace('#', '');
+    spaShowPage(hash || 'home');
+}
+
+function isPageActive(pageName) {
+    const el = document.getElementById('page-' + pageName);
+    return !!(el && el.classList.contains('active'));
+}
+
+window.addEventListener('hashchange', spaRouteFromHash);
+window.addEventListener('DOMContentLoaded', spaRouteFromHash);
+
+window.PunjabPriceApp = window.PunjabPriceApp || {
+    db: db,
+    auth: auth,
+    storage: storage,
+    router: { showPage: spaShowPage, isPageActive: isPageActive },
+    chat: {},
+    notifications: {},
+    searchHistory: [],
+    priceApis: {}
+};
+</script>
+
+<script>
+function toggleDarkMode() {
+    const homePage = document.getElementById('page-home');
+    homePage.classList.toggle('dark-mode');
+    const btn = document.getElementById('darkToggleBtn');
+    btn.textContent = homePage.classList.contains('dark-mode') ? '☀️' : '🌙';
+}
+
+async function startSearch() {
+    const inputBox = document.getElementById("inputBox");
+    const result = document.getElementById("result");
+
+    let input = inputBox.value.trim();
+    let searchKey = input.toLowerCase();
+
+    if (searchKey === "") {
+        result.innerHTML = "<span style='color: #dc2626;'>❌ براہ کرم کچھ لکھیں</span>";
+        return;
+    }
+
+    result.innerHTML = "<span style='color: #1e40af;'>⏳ تلاش جاری ہے... براہ کرم انتظار کریں</span>";
+
+    try {
+        const querySnapshot = await db.collection("Document").get();
+        let foundData = null;
+
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            Object.keys(data).forEach((key) => {
+                let fieldValue = String(data[key]).toLowerCase();
+                if (fieldValue.includes(searchKey)) {
+                    foundData = data;
+                }
+            });
+        });
+
+        if (foundData) {
+            let price = "معلوم نہیں";
+            let shop = "معلوم نہیں";
+            let originalName = foundData.name || foundData.searchname || input;
+
+            Object.keys(foundData).forEach((key) => {
+                let lowerKey = key.toLowerCase();
+                if (lowerKey === "price" || lowerKey === "rate" || lowerKey === "cost") {
+                    price = foundData[key];
+                }
+                if (lowerKey === "shop" || lowerKey === "market" || lowerKey === "location" || lowerKey === "store") {
+                    shop = foundData[key];
+                }
+            });
+
+            result.innerHTML = `
+                <div style="text-align: right; direction: rtl;">
+                    🛍️ <b>پروڈکٹ:</b> ${originalName}<br>
+                    💰 <b>قیمت:</b> Rs ${price}<br>
+                    🏪 <b>دکان/مارکیٹ:</b> ${shop} ${foundData.verified ? "✅" : ""}
+                </div>
+            `;
+        } else {
+            result.innerHTML = "<span style='color: #d97706;'>❌ کوئی نتیجہ نہیں ملا، براہ کرم نام یا املا (Spelling) چیک کریں۔</span>";
+        }
+
+    } catch (error) {
+        console.error("Firebase Error:", error);
+        result.innerHTML = `<span style='color: #dc2626;'>❌ سرور سے رابطہ ناکام رہا۔<br><small>${error.message}</small></span>`;
+    }
+}
+
+let calcProducts = [];
+let calcExpression = "";
+
+async function loadCalculatorProducts() {
+    try {
+        const snapshot = await db.collection("Document").get();
+        calcProducts = [];
+        snapshot.forEach((doc) => {
+            const d = doc.data();
+            const name = d.name;
+            const price = parseFloat(d.price);
+            if (name && !isNaN(price)) {
+                calcProducts.push({ name: name, price: price });
+            }
+        });
+    } catch (err) {
+        console.error("Calculator products load error:", err);
+    }
+}
+
+function parseCalcInput(text) {
+    const numMatch = text.match(/(\d+\.?\d*)/);
+    const qty = numMatch ? parseFloat(numMatch[1]) : 1;
+    let productText = text
+        .replace(numMatch ? numMatch[0] : "", "")
+        .replace(/\b(kg|kilogram|kilo|g|gram|grams|litre|liter|l|dozen|pcs|piece|pieces|pao|seer)\b/gi, "")
+        .trim()
+        .toLowerCase();
+    return { qty, productText };
+}
+
+function findBestProductMatch(productText) {
+    if (!productText) return null;
+    let match = calcProducts.find(p => p.name.toLowerCase() === productText);
+    if (match) return match;
+    match = calcProducts.find(p =>
+        p.name.toLowerCase().includes(productText) || productText.includes(p.name.toLowerCase())
+    );
+    return match || null;
+}
+
+function calcLookupPreview() {
+    const input = document.getElementById("calcSearchBox");
+    const resultEl = document.getElementById("calcLookupResult");
+    if (!input || !resultEl) return;
+
+    const text = input.value.trim();
+    if (!text) { resultEl.innerHTML = ""; return; }
+
+    const { qty, productText } = parseCalcInput(text);
+    const product = findBestProductMatch(productText);
+
+    if (product) {
+        const total = product.price * qty;
+        resultEl.innerHTML = `
+            ✅ <b>${product.name}</b> × ${qty} = <b>Rs ${total.toFixed(0)}</b>
+            <button onclick="calcUseValue(${total})" style="margin-top:6px; background:#16a34a;">
+                Calculator mein daalen
+            </button>
+        `;
+    } else {
+        resultEl.innerHTML = `<span style="color:#d97706;">Product nahi mila...</span>`;
+    }
+}
+
+function calcUpdateDisplay() {
+    const display = document.getElementById("calcDisplay");
+    if (display) display.textContent = calcExpression === "" ? "0" : calcExpression;
+}
+
+function calcPress(val) {
+    calcExpression += val;
+    calcUpdateDisplay();
+}
+
+function calcUseValue(value) {
+    calcExpression += value;
+    calcUpdateDisplay();
+}
+
+function calcClear() {
+    calcExpression = "";
+    calcUpdateDisplay();
+}
+
+function calcBackspace() {
+    calcExpression = calcExpression.slice(0, -1);
+    calcUpdateDisplay();
+}
+
+function calcEquals() {
+    try {
+        const safeExpr = calcExpression.replace(/[^0-9+\-*/.%() ]/g, "");
+        let result = Function('"use strict"; return (' + safeExpr + ')')();
+        if (typeof result !== "number" || !isFinite(result)) throw new Error("Invalid");
+        calcExpression = String(Math.round(result * 100) / 100);
+        calcUpdateDisplay();
+    } catch (e) {
+        calcExpression = "";
+        document.getElementById("calcDisplay").textContent = "Error";
+    }
+}
+
+function showPage(page) {
+    const result = document.getElementById("result");
+
+    if (page === "home") {
+        result.innerHTML = "📌<br><b>Welcome to Punjab Price App</b><br>صوبہ پنجاب کے سرکاری نرخ جاننے کے لیے سرچ کا استعمال کریں۔";
+    }
+
+    if (page === "search") {
+        result.innerHTML = "نتائج یہاں نظر آئیں گے";
+    }
+
+    if (page === "profile") {
+        result.innerHTML = "👤 <b>Profile Page</b><br>(Coming Soon)";
+    }
+
+    if (page === "calculator") {
+        calcExpression = "";
+        result.innerHTML = `
+            <div style="text-align:left;">
+                <b>🧮 Pro Calculator</b>
+
+                <p style="font-size:13px; color:#666; margin:10px 0 4px;">
+                    Product ka naam likhen (jaise: Atta 2 kg):
+                </p>
+                <input type="text" id="calcSearchBox" placeholder="jaise: Atta 1 kg" autocomplete="off" oninput="calcLookupPreview()">
+                <div id="calcLookupResult" style="font-size:14px; margin-top:8px;"></div>
+
+                <div style="background:#1e293b; border-radius:12px; padding:16px; margin-top:18px;">
+                    <div id="calcDisplay" style="color:white; font-size:30px; text-align:right; min-height:42px; word-wrap:break-word;">0</div>
+                </div>
+
+                <div class="calc-grid">
+                    <button class="calc-btn calc-fn" onclick="calcClear()">C</button>
+                    <button class="calc-btn calc-fn" onclick="calcBackspace()">⌫</button>
+                    <button class="calc-btn calc-op" onclick="calcPress('%')">%</button>
+                    <button class="calc-btn calc-op" onclick="calcPress('/')">÷</button>
+
+                    <button class="calc-btn" onclick="calcPress('7')">7</button>
+                    <button class="calc-btn" onclick="calcPress('8')">8</button>
+                    <button class="calc-btn" onclick="calcPress('9')">9</button>
+                    <button class="calc-btn calc-op" onclick="calcPress('*')">×</button>
+
+                    <button class="calc-btn" onclick="calcPress('4')">4</button>
+                    <button class="calc-btn" onclick="calcPress('5')">5</button>
+                    <button class="calc-btn" onclick="calcPress('6')">6</button>
+                    <button class="calc-btn calc-op" onclick="calcPress('-')">−</button>
+
+                    <button class="calc-btn" onclick="calcPress('1')">1</button>
+                    <button class="calc-btn" onclick="calcPress('2')">2</button>
+                    <button class="calc-btn" onclick="calcPress('3')">3</button>
+                    <button class="calc-btn calc-op" onclick="calcPress('+')">+</button>
+
+                    <button class="calc-btn" onclick="calcPress('0')" style="grid-column: span 2;">0</button>
+                    <button class="calc-btn" onclick="calcPress('.')">.</button>
+                    <button class="calc-btn calc-eq" onclick="calcEquals()">=</button>
+                </div>
+            </div>
+        `;
+        loadCalculatorProducts();
+    }
+}
+
+document.getElementById("inputBox").addEventListener("keypress", function(event) {
+    if (event.key === "Enter") {
+        startSearch();
+    }
+});
+</script>
+
+<script>
+function addProductRow() {
+    const rows = document.getElementById("productRows");
+    const row = document.createElement("div");
+    row.className = "product-row";
+    row.innerHTML = `
+        <input type="text" placeholder="Product naam" class="prodName">
+        <input type="text" placeholder="Price" class="prodPrice">
+        <button class="remove-row" onclick="this.parentElement.remove()">✕</button>
+    `;
+    rows.appendChild(row);
+}
+
+let shopLat = null;
+let shopLng = null;
+
+function detectLocation() {
+    const box = document.getElementById("locationText");
+    if (!navigator.geolocation) {
+        box.innerHTML = "📍 <b>Location:</b> Is browser mein location detect nahi ho sakti";
+        return;
+    }
+    box.innerHTML = "📍 <b>Location:</b> Detect ho rahi hai...";
+    navigator.geolocation.getCurrentPosition(
+        function (pos) {
+            shopLat = pos.coords.latitude;
+            shopLng = pos.coords.longitude;
+            box.innerHTML = "📍 <b>Location:</b> Detect ho gayi (" + shopLat.toFixed(4) + ", " + shopLng.toFixed(4) + ")";
+        },
+        function () {
+            box.innerHTML = "📍 <b>Location:</b> Detect nahi ho saki, براہ کرم khud likhen";
+        }
+    );
+}
+
+function showManualLocation() {
+    document.getElementById("manualLocationWrap").classList.remove("hidden");
+    document.getElementById("manualLocationLink").style.display = "none";
+}
+
+function getIdentity() {
+    try {
+        const raw = localStorage.getItem("ppShopIdentity");
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+        return window.__ppShopIdentity || null;
+    }
+}
+
+function setIdentity(idObj) {
+    try {
+        localStorage.setItem("ppShopIdentity", JSON.stringify(idObj));
+    } catch (e) {
+        window.__ppShopIdentity = idObj;
+    }
+}
+
+let recentShown = 5;
+let allSubmissionsForDash = [];
+
+async function loadDashboard() {
+    const identity = getIdentity();
+    const dashLoading = document.getElementById("dashLoading");
+
+    if (!identity) {
+        dashLoading.textContent = "Pehli submission ke baad dashboard yahan dikhega.";
+        return;
+    }
+
+    dashLoading.style.display = "block";
+    dashLoading.textContent = "Loading...";
+
+    try {
+        let query = db.collection("PendingSubmissions");
+        query = identity.type === "phone"
+            ? query.where("phoneNumber", "==", identity.value)
+            : query.where("shopName", "==", identity.value);
+
+        const snapshot = await query.get();
+        let total = 0, approved = 0, pending = 0, rejected = 0;
+        allSubmissionsForDash = [];
+
+        snapshot.forEach((doc) => {
+            const d = doc.data();
+            total++;
+            const status = String(d.status || "pending").toLowerCase();
+            if (status === "approved") approved++;
+            else if (status === "rejected") rejected++;
+            else pending++;
+            allSubmissionsForDash.push(d);
+        });
+
+        allSubmissionsForDash.sort((a, b) => {
+            const ta = a.submittedAt && a.submittedAt.toMillis ? a.submittedAt.toMillis() : 0;
+            const tb = b.submittedAt && b.submittedAt.toMillis ? b.submittedAt.toMillis() : 0;
+            return tb - ta;
+        });
+
+        document.getElementById("statTotalSub").textContent = total;
+        document.getElementById("statApproved").textContent = approved;
+        document.getElementById("statPending").textContent = pending;
+        document.getElementById("statRejected").textContent = rejected;
+
+        const trust = total > 0 ? Math.round((approved / total) * 100) : 0;
+        document.getElementById("trustScoreText").textContent = trust;
+        document.getElementById("trustProgressFill").style.width = trust + "%";
+
+        const lastEl = document.getElementById("lastSubmissionText");
+        if (allSubmissionsForDash.length > 0 && allSubmissionsForDash[0].submittedAt && allSubmissionsForDash[0].submittedAt.toDate) {
+            lastEl.textContent = allSubmissionsForDash[0].submittedAt.toDate().toLocaleString();
+        } else {
+            lastEl.textContent = "—";
+        }
+
+        recentShown = 5;
+        renderRecentProducts();
+        dashLoading.style.display = "none";
+    } catch (err) {
+        dashLoading.textContent = "Dashboard load nahi ho saka: " + err.message;
+    }
+}
+
+function renderRecentProducts() {
+    const list = document.getElementById("recentProductsList");
+    const toShow = allSubmissionsForDash.slice(0, recentShown);
+    list.innerHTML = toShow.length
+        ? toShow.map(s => `
+            <div class="dash-recent-item">
+                ${escapeHtml(s.productName || "—")} — Rs ${escapeHtml(String(s.price || "—"))}
+                <span style="color:#888;">(${escapeHtml(String(s.status || "pending"))})</span>
+            </div>
+        `).join("")
+        : '<div class="dash-recent-item" style="color:#888;">Koi product nahi mila.</div>';
+
+    document.getElementById("loadMoreBtn").style.display =
+        allSubmissionsForDash.length > recentShown ? "block" : "none";
+}
+
+function loadMoreRecent() {
+    recentShown += 5;
+    renderRecentProducts();
+}
+
+async function submitShopData() {
+    const shopName = document.getElementById("shopName").value.trim();
+    const ownerName = document.getElementById("ownerName").value.trim();
+    const phoneNumber = document.getElementById("phoneNumber").value.trim();
+    const shopAddress = document.getElementById("shopAddress").value.trim();
+    const manualLocation = document.getElementById("manualLocationInput").value.trim();
+    const photoFile = document.getElementById("shopPhoto").files[0];
+    const msg = document.getElementById("msg");
+
+    if (!shopName) {
+        msg.textContent = "❌ Dukaan ka naam likhna zaroori hai.";
+        msg.style.color = "#dc2626";
+        return;
+    }
+
+    const nameInputs = document.querySelectorAll(".prodName");
+    const priceInputs = document.querySelectorAll(".prodPrice");
+    const products = [];
+
+    for (let i = 0; i < nameInputs.length; i++) {
+        const pname = nameInputs[i].value.trim();
+        const pprice = priceInputs[i].value.trim();
+        if (pname && pprice) {
+            products.push({ name: pname, price: pprice });
+        }
+    }
+
+    if (products.length === 0) {
+        msg.textContent = "❌ Kam se kam ek product aur price likhen.";
+        msg.style.color = "#dc2626";
+        return;
+    }
+
+    msg.textContent = "⏳ Submit ho raha hai...";
+    msg.style.color = "#1e40af";
+
+    try {
+        let photoURL = null;
+        if (photoFile) {
+            msg.textContent = "⏳ Photo upload ho rahi hai...";
+            const storageRef = storage.ref("shopPhotos/" + Date.now() + "_" + photoFile.name);
+            const uploadSnap = await storageRef.put(photoFile);
+            photoURL = await uploadSnap.ref.getDownloadURL();
+            msg.textContent = "⏳ Submit ho raha hai...";
+        }
+
+        const locationData = {};
+        if (shopLat !== null && shopLng !== null) {
+            locationData.lat = shopLat;
+            locationData.lng = shopLng;
+        } else if (manualLocation) {
+            locationData.manualLocation = manualLocation;
+        }
+
+        const batch = db.batch();
+        products.forEach(p => {
+            const ref = db.collection("PendingSubmissions").doc();
+            batch.set(ref, {
+                shopName: shopName,
+                ownerName: ownerName,
+                phoneNumber: phoneNumber,
+                shopAddress: shopAddress,
+                ...locationData,
+                photoURL: photoURL,
+                productName: p.name,
+                price: p.price,
+                status: "pending",
+                submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        });
+        await batch.commit();
+
+        msg.textContent = "✅ Submit ho gaya! Admin check karne ke baad live ho jayega.";
+        msg.style.color = "#16a34a";
+
+        setIdentity(phoneNumber ? { type: "phone", value: phoneNumber } : { type: "shop", value: shopName });
+
+        document.getElementById("shopName").value = "";
+        document.getElementById("ownerName").value = "";
+        document.getElementById("phoneNumber").value = "";
+        document.getElementById("shopAddress").value = "";
+        document.getElementById("manualLocationInput").value = "";
+        document.getElementById("shopPhoto").value = "";
+        document.getElementById("productRows").innerHTML = `
+            <div class="product-row">
+                <input type="text" placeholder="Product naam" class="prodName">
+                <input type="text" placeholder="Price" class="prodPrice">
+            </div>
+        `;
+
+        loadDashboard();
+    } catch (err) {
+        msg.textContent = "❌ Error: " + err.message;
+        msg.style.color = "#dc2626";
+    }
+}
+
+window.addEventListener("DOMContentLoaded", loadDashboard);
+</script>
+
+<script>
+const COLLECTION_NAME = "Document";
+let allProducts = [];
+
+auth.onAuthStateChanged((user) => {
+    if (user) {
+        document.getElementById("loginCard").classList.add("hidden");
+        document.getElementById("adminSection").classList.remove("hidden");
+        document.getElementById("logoutBtn").classList.remove("hidden");
+        document.getElementById("userTag").textContent = user.email;
+        loadProducts();
+    } else {
+        document.getElementById("loginCard").classList.remove("hidden");
+        document.getElementById("adminSection").classList.add("hidden");
+        document.getElementById("logoutBtn").classList.add("hidden");
+        document.getElementById("userTag").textContent = "";
+    }
+});
+
+function doLogin() {
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const msg = document.getElementById("loginMsg");
+    msg.textContent = "⏳ Login ho raha hai...";
+    msg.style.color = "#1e40af";
+    auth.signInWithEmailAndPassword(email, password)
+        .then(() => { msg.textContent = ""; })
+        .catch((err) => {
+            msg.textContent = "❌ " + err.message;
+            msg.style.color = "#dc2626";
+        });
+}
+
+function doGoogleLogin() {
+    const msg = document.getElementById("loginMsg");
+    msg.textContent = "⏳ Google se login ho raha hai...";
+    msg.style.color = "#1e40af";
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithRedirect(provider);
+}
+
+auth.getRedirectResult().then((result) => {
+    if (result.user) { console.log("Google login UID:", result.user.uid); }
+}).catch((err) => {
+    const msg = document.getElementById("loginMsg");
+    if (msg) { msg.textContent = "❌ " + err.message; msg.style.color = "#dc2626"; }
+});
+
+function doLogout() { auth.signOut(); }
+
+function loadProducts() {
+    document.getElementById("productList").innerHTML = "⏳ Loading...";
+    db.collection(COLLECTION_NAME).get().then((snapshot) => {
+        allProducts = [];
+        snapshot.forEach((doc) => { allProducts.push({ id: doc.id, ...doc.data() }); });
+        const statTotal = document.getElementById("statTotal");
+        if (statTotal) statTotal.textContent = allProducts.length;
+        renderList();
+    }).catch((err) => {
+        document.getElementById("productList").innerHTML = "<span style='color:#dc2626;'>Error: " + err.message + "</span>";
+    });
+}
+
+function renderList() {
+    const search = document.getElementById("searchBox").value.trim().toLowerCase();
+    const listEl = document.getElementById("productList");
+    const filtered = allProducts.filter(p => {
+        const name = String(p.name || "").toLowerCase();
+        return name.includes(search);
+    });
+    document.getElementById("countBadge").textContent = `${filtered.length} / ${allProducts.length} products dikh rahe hain`;
+    if (filtered.length === 0) {
+        listEl.innerHTML = "<p style='color:#888;'>Koi product nahi mila.</p>";
+        return;
+    }
+    listEl.innerHTML = filtered.map(p => `
+        <div class="product-row" id="row-${p.id}">
+            <div class="product-info">
+                <b>${escapeHtml(p.name || "—")}</b><br>
+                Rs ${escapeHtml(String(p.price ?? "—"))} · ${escapeHtml(p.shop || "—")}
+            </div>
+            <div class="row-actions">
+                <button class="small secondary" onclick="startEdit('${p.id}')">Edit</button>
+                <button class="small danger" onclick="deleteProduct('${p.id}')">Delete</button>
+            </div>
+        </div>
+    `).join("");
+}
+
+function addProduct() {
+    const nameEl = document.getElementById("newName");
+    const priceEl = document.getElementById("newPrice");
+    const shopEl = document.getElementById("newShop");
+    const msg = document.getElementById("addMsg");
+    const name = nameEl.value.trim();
+    const price = priceEl.value.trim();
+    const shop = shopEl.value.trim();
+
+    if (!name || !price || !shop) {
+        msg.textContent = "❌ Sab fields bharen.";
+        msg.style.color = "#dc2626";
+        return;
+    }
+    msg.textContent = "⏳ Save ho raha hai...";
+    msg.style.color = "#1e40af";
+    db.collection(COLLECTION_NAME).add({
+        name: name, price: price, shop: shop,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        msg.textContent = "✅ Product save ho gaya!";
+        msg.style.color = "#16a34a";
+        nameEl.value = ""; priceEl.value = ""; shopEl.value = "";
+        loadProducts();
+    }).catch((err) => {
+        msg.textContent = "❌ " + err.message;
+        msg.style.color = "#dc2626";
+    });
+}
+
+function bulkUpload() {
+    const fileInput = document.getElementById("csvFile");
+    const msg = document.getElementById("bulkMsg");
+    const file = fileInput.files[0];
+    if (!file) {
+        msg.textContent = "❌ Pehle CSV file select karen.";
+        msg.style.color = "#dc2626";
+        return;
+    }
+    msg.textContent = "⏳ CSV padha jaa raha hai...";
+    msg.style.color = "#1e40af";
+    Papa.parse(file, {
+        header: true, skipEmptyLines: true,
+        complete: async function(results) {
+            const rows = results.data;
+            const validRows = rows.filter(r => r.name && r.name.trim() && r.price && String(r.price).trim() && r.shop && r.shop.trim())
+                                   .map(r => ({ name: r.name.trim(), price: String(r.price).trim(), shop: r.shop.trim() }));
+            if (validRows.length === 0) {
+                msg.textContent = "❌ Valid data nahi mila. Columns: name, price, shop hona chahiye.";
+                msg.style.color = "#dc2626";
+                return;
+            }
+            const CHUNK_SIZE = 500;
+            let uploaded = 0;
+            try {
+                for (let i = 0; i < validRows.length; i += CHUNK_SIZE) {
+                    const chunk = validRows.slice(i, i + CHUNK_SIZE);
+                    const batch = db.batch();
+                    chunk.forEach(row => {
+                        const newDocRef = db.collection(COLLECTION_NAME).doc();
+                        batch.set(newDocRef, { name: row.name, price: row.price, shop: row.shop, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    });
+                    await batch.commit();
+                    uploaded += chunk.length;
+                    msg.textContent = `⏳ ${uploaded} / ${validRows.length} upload ho rahe hain...`;
+                }
+                msg.textContent = `✅ ${uploaded} products upload ho gaye!`;
+                msg.style.color = "#16a34a";
+                fileInput.value = "";
+                loadProducts();
+            } catch (err) {
+                msg.textContent = "❌ Error: " + err.message;
+                msg.style.color = "#dc2626";
+            }
+        }
+    });
+}
+
+const PBS_ALLOWED_KEYWORDS = [
+    "atta", "wheat", "flour", "sugar", "cheeni", "tea", "patti", "chai",
+    "dal", "daal", "gram", "moong", "masoor", "tomato", "tamatar", "onion", "pyaz", "potato", "aloo"
+];
+
+function pbsIsAllowed(productName) {
+    const lower = String(productName).toLowerCase();
+    return PBS_ALLOWED_KEYWORDS.some(k => lower.includes(k));
+}
+
+function pbsLog(msg) {
+    const logEl = document.getElementById("pbsLog");
+    if (logEl) logEl.innerHTML += msg + "<br>";
+}
+
+function processPbsExcel() {
+    const fileInput = document.getElementById("pbsExcelFile");
+    const msg = document.getElementById("pbsMsg");
+    const logEl = document.getElementById("pbsLog");
+    logEl.innerHTML = "";
+    const file = fileInput.files[0];
+
+    if (!file) {
+        msg.textContent = "❌ Pehle PBS se download ki hui Excel file select karen.";
+        msg.style.color = "#dc2626";
+        return;
+    }
+
+    msg.textContent = "⏳ Excel file ko parse kiya jaa raha hai...";
+    msg.style.color = "#1e3a8a";
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+            const extractedPrices = {};
+            rows.forEach((row, index) => {
+                const itemName = String(row[1] || row[2] || "").trim();
+                const price = parseFloat(row[3] || row[4] || row[5]);
+
+                if (itemName && !isNaN(price) && itemName.length > 2) {
+                    extractedPrices[itemName.toLowerCase()] = price;
+                }
+            });
+
+            pbsLog(`📊 Excel سے کل ${Object.keys(extractedPrices).length} پروڈکٹس ملے۔`);
+
+            msg.textContent = "⏳ فائر بیس ڈیٹا بیس اپ ڈیٹ ہو رہا ہے...";
+            const snapshot = await db.collection(COLLECTION_NAME).get();
+            let updatedCount = 0;
+            let skippedCount = 0;
+
+            for (const doc of snapshot.docs) {
+                const data2 = doc.data();
+                const name = data2.name;
+
+                if (!name || !pbsIsAllowed(name)) {
+                    skippedCount++;
+                    continue;
+                }
+
+                const lowerName = name.toLowerCase();
+                const matchKey = Object.keys(extractedPrices).find(
+                    key => key.includes(lowerName) || lowerName.includes(key)
+                );
+
+                if (matchKey) {
+                    await db.collection(COLLECTION_NAME).doc(doc.id).update({
+                        price: String(extractedPrices[matchKey])
+                    });
+                    updatedCount++;
+                    pbsLog(`✅ ${name} → Rs ${extractedPrices[matchKey]}`);
+                }
+            }
+
+            msg.innerHTML = `✅ کام مکمل! ${updatedCount} پروڈکٹس اپ ڈیٹ ہوئے اور ${skippedCount} اسکپ ہوئے (جو لسٹ میں نہیں تھے)۔`;
+            msg.style.color = "#16a34a";
+            fileInput.value = "";
+            loadProducts();
+
+        } catch (err) {
+            msg.textContent = "❌ ایکسل فائل پڑھنے میں مسئلہ: " + err.message;
+            msg.style.color = "#dc2626";
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function startEdit(id) {
+    const p = allProducts.find(x => x.id === id);
+    if (!p) return;
+    const row = document.getElementById(`row-${id}`);
+    row.innerHTML = `
+        <div class="edit-box" style="width:100%;">
+            <input type="text" id="editName-${id}" value="${escapeHtml(p.name || '')}">
+            <input type="text" id="editPrice-${id}" value="${escapeHtml(String(p.price ?? ''))}">
+            <input type="text" id="editShop-${id}" value="${escapeHtml(p.shop || '')}">
+            <div class="row-actions">
+                <button class="small" onclick="saveEdit('${id}')">Save</button>
+                <button class="small secondary" onclick="renderList()">Cancel</button>
+            </div>
+        </div>
+    `;
+}
+
+function saveEdit(id) {
+    const name = document.getElementById(`editName-${id}`).value.trim();
+    const price = document.getElementById(`editPrice-${id}`).value.trim();
+    const shop = document.getElementById(`editShop-${id}`).value.trim();
+    if (!name || !price || !shop) { alert("Sab fields bharen."); return; }
+    db.collection(COLLECTION_NAME).doc(id).update({ name, price, shop })
+        .then(() => loadProducts())
+        .catch((err) => alert("Error: " + err.message));
+}
+
+function deleteProduct(id) {
+    if (!confirm("Pakka delete karna hai?")) return;
+    db.collection(COLLECTION_NAME).doc(id).delete()
+        .then(() => loadProducts())
+        .catch((err) => alert("Error: " + err.message));
+}
+</script>
+
+<script>
+var authMode = 'login';
+
+function switchAuthTab(mode) {
+    authMode = mode;
+    var loginTab = document.getElementById('loginTabBtn');
+    var registerTab = document.getElementById('registerTabBtn');
+    var actionBtn = document.getElementById('authActionBtn');
+    var msg = document.getElementById('loginPageMsg');
+    if (loginTab) loginTab.classList.toggle('active', mode === 'login');
+    if (registerTab) registerTab.classList.toggle('active', mode === 'register');
+    if (actionBtn) actionBtn.textContent = mode === 'login' ? 'Login' : 'Create Account';
+    if (msg) msg.innerHTML = '';
+}
+
+function handleAuthAction() {
+    if (authMode === 'register') {
+        register();
+    } else {
+        login();
+    }
+}
+
+function togglePasswordVisibility() {
+    var pwd = document.getElementById('password');
+    var btn = document.getElementById('togglePasswordBtn');
+    if (!pwd || !btn) return;
+    if (pwd.type === 'password') {
+        pwd.type = 'text';
+        btn.textContent = 'Hide';
+    } else {
+        pwd.type = 'password';
+        btn.textContent = 'Show';
+    }
+}
+
+function forgotPassword() {
+    var email = document.getElementById('email').value.trim();
+    var msg = document.getElementById('loginPageMsg');
+    if (!email) {
+        msg.style.color = 'red';
+        msg.innerHTML = 'Pehle apna email likhen, phir reset link bheja jayega.';
+        return;
+    }
+    msg.style.color = 'blue';
+    msg.innerHTML = 'Reset link bheja jaa raha hai...';
+    firebase.auth().sendPasswordResetEmail(email)
+        .then(function () {
+            msg.style.color = 'green';
+            msg.innerHTML = 'Reset link aapke email par bhej diya gaya hai.';
+        })
+        .catch(function (error) {
+            msg.style.color = 'red';
+            msg.innerHTML = 'Error: ' + error.message;
+        });
+}
+
+function loginWithGoogle() {
+    var msg = document.getElementById('loginPageMsg');
+    msg.style.color = 'blue';
+    msg.innerHTML = 'Google se login ho raha hai...';
+    var provider = new firebase.auth.GoogleAuthProvider();
+    firebase.auth().signInWithRedirect(provider);
+}
+
+firebase.auth().getRedirectResult().then(function (result) {
+    if (result && result.user) {
+        var msg = document.getElementById('loginPageMsg');
+        if (msg) {
+            msg.style.color = 'green';
+            msg.innerHTML = 'Login Successful! Redirecting...';
+        }
+        if (isPageActive('login')) {
+            setTimeout(function () {
+                spaShowPage('home');
+            }, 1200);
+        }
+    }
+}).catch(function (error) {
+    var msg = document.getElementById('loginPageMsg');
+    if (msg && error) {
+        msg.style.color = 'red';
+        msg.innerHTML = 'Error: ' + error.message;
+    }
+});
+
+function login() {
+  let email = document.getElementById("email").value.trim();
+  let password = document.getElementById("password").value;
+  let msg = document.getElementById("loginPageMsg");
+
+  if (email === "" || password === "") {
+    msg.style.color = "red";
+    msg.innerHTML = "Email aur password required hai";
+    return;
+  }
+
+  msg.style.color = "blue";
+  msg.innerHTML = "Connecting to Firebase...";
+
+  firebase.auth().signInWithEmailAndPassword(email, password)
+    .then((userCredential) => {
+      msg.style.color = "green";
+      msg.innerHTML = "Login Successful! Redirecting...";
+      setTimeout(() => {
+        spaShowPage('home');
+      }, 1200);
+    })
+    .catch((error) => {
+      msg.style.color = "red";
+      msg.innerHTML = "Login Failed: " + error.message;
+    });
+}
+
+function register() {
+  let email = document.getElementById("email").value.trim();
+  let password = document.getElementById("password").value;
+  let msg = document.getElementById("loginPageMsg");
+
+  if (email === "" || password === "") {
+    msg.style.color = "red";
+    msg.innerHTML = "Registration ke liye Email aur password zaroori hai";
+    return;
+  }
+
+  if (password.length < 6) {
+    msg.style.color = "red";
+    msg.innerHTML = "Password kam az kam 6 characters ka hona chahiye";
+    return;
+  }
+
+  msg.style.color = "blue";
+  msg.innerHTML = "Creating Secure Account...";
+
+  firebase.auth().createUserWithEmailAndPassword(email, password)
+    .then((userCredential) => {
+      msg.style.color = "green";
+      msg.innerHTML = "Account Created! Ab aap Login dabayein.";
+    })
+    .catch((error) => {
+      msg.style.color = "red";
+      msg.innerHTML = "Registration Failed: " + error.message;
+    });
+}
+</script>
+
+</body>
+</html>
