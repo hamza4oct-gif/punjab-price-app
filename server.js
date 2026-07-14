@@ -118,6 +118,75 @@ const NAHEED_PRODUCT_MAP = {
     atta: { url: 'https://www.naheed.pk/bake-parlour-super-fine-atta-10-kg', packKg: 10 }
 };
 
+// ============ CITY / MANDI MARKET IDS (verified from amis.pk district-cities list) ============
+// Lets users get a price specific to THEIR city's mandi, instead of a generic
+// province-wide price. Keys are lowercase city names as typed/selected by the user.
+const MARKET_ID_MAP = {
+    lahore: 1,
+    faisalabad: 2,
+    gujranwala: 3,
+    okara: 4,
+    sargodha: 5,
+    rawalpindi: 6,
+    multan: 7,
+    rahimyarkhan: 8,
+    bhakkar: 9,
+    kasur: 11,
+    sahiwal: 13,
+    vehari: 14,
+    burewala: 15,
+    layyah: 16,
+    gujrat: 17,
+    khanewal: 18,
+    muzaffargarh: 19,
+    bahawalpur: 20,
+    ttsingh: 21,
+    dgkhan: 36,
+    jhang: 64,
+    sialkot: 57,
+    narowal: 58,
+    sheikhupura: 78,
+    hafizabad: 104,
+    chiniot: 81,
+    nankana: 70,
+    mandibahaudin: 41,
+    chakwal: 59,
+    jhelum: 60,
+    mianwali: 62,
+    rajanpur: 63
+};
+
+// English commodity name keyword(s) as they appear on AMIS's per-city price table,
+// used to find the right row when browsing a city's full commodity list.
+const CITY_COMMODITY_KEYWORDS = {
+    atta: ['wheat'],
+    chini: ['sugar'],
+    mirch: ['red chilli', 'chilli'],
+    haldi: ['turmeric'],
+    pyaz: ['onion'],
+    lasun: ['garlic'],
+    dhaniya: ['coriander'],
+    chawal: ['rice'],
+    anar: ['pomegranate'],
+    seb: ['apple'],
+    kela: ['banana'],
+    aam: ['mango'],
+    malta: ['kinnow', 'orange'],
+    angoor: ['grape'],
+    tarbooz: ['watermelon'],
+    kharbooza: ['melon'],
+    amrood: ['guava'],
+    papita: ['papaya'],
+    aarhoo: ['peach'],
+    aloo_bukhara: ['plum'],
+    lychee: ['lychee', 'litchi'],
+    strawberry: ['strawberry'],
+    loquat: ['loquat'],
+    jamun: ['jaman'],
+    narial: ['cocunut', 'coconut'],
+    nashpati: ['pear']
+};
+
 // ============ TRUSTED INTERNET SOURCES (REAL, VERIFIED SOURCES) ============
 const TRUSTED_SOURCES = [
     {
@@ -739,6 +808,61 @@ function isRateLimited(ip) {
     return entry.count > CONFIG.RATE_LIMIT_MAX_REQUESTS;
 }
 
+// ============ CITY-SPECIFIC PRICE LOOKUP ============
+// Fetches the FULL commodity list for one city's mandi, then finds the row
+// matching our item and extracts its price. Used only when the user picked a
+// specific city — otherwise the app keeps using the existing province-wide source.
+async function fetchCityPrice(canonicalKey, cityKey) {
+    const marketId = MARKET_ID_MAP[cityKey];
+    const keywords = CITY_COMMODITY_KEYWORDS[canonicalKey];
+    if (!marketId || !keywords) return null;
+
+    const targetUrl = `http://www.amis.pk/Printer.aspx?searchType=1&commodityId=${marketId}`;
+    const startTime = Date.now();
+
+    try {
+        const response = await smartRetry(
+            () => axios.get(targetUrl, { timeout: CONFIG.INTERNET_SOURCE_TIMEOUT_MS }),
+            CONFIG.RETRY
+        );
+        const responseTimeMs = Date.now() - startTime;
+        const $ = cheerio.load(response.data);
+        let foundPrice = null;
+
+        $('table tr').each((i, row) => {
+            const cells = $(row).find('td');
+            if (cells.length < 4) return;
+
+            const cellTexts = [];
+            cells.each((j, cell) => { cellTexts.push($(cell).text().trim()); });
+
+            const rowLabel = (cellTexts[0] || '').toLowerCase();
+            const isMatch = keywords.some(kw => rowLabel.includes(kw));
+            if (!isMatch) return;
+
+            const candidates = [cellTexts[cellTexts.length - 2], cellTexts[cellTexts.length - 3]];
+            for (const candidate of candidates) {
+                const numericValue = parseFloat((candidate || '').replace(/,/g, ''));
+                if (!isNaN(numericValue) && numericValue > 0) {
+                    foundPrice = numericValue;
+                    break;
+                }
+            }
+            if (foundPrice !== null) return false; // stop looping
+        });
+
+        const sourceName = `amis-${cityKey}`;
+        if (foundPrice !== null) {
+            recordSourceSuccess(sourceName, responseTimeMs);
+            return { price: foundPrice, source: sourceName, foundAt: new Date().toISOString(), sourceScore: 100 };
+        }
+        return null;
+    } catch (e) {
+        console.error(`⚠️ City price lookup for "${cityKey}" failed:`, e.message);
+        return null;
+    }
+}
+
 // ============ DOES THIS ITEM HAVE A LIVE INTERNET SOURCE? ============
 // Used to decide search priority: if an item has a real trusted source mapped
 // (AMIS/Naheed), we should trust a LIVE price over whatever is sitting in
@@ -946,16 +1070,22 @@ function finalizeSearchTracking(query, canonicalKey, resolvedFrom, found, respon
     }).catch(e => console.error('⚠️ Search tracking failed:', e.message));
 }
 
-async function performSmartSearch(rawQuery) {
+async function performSmartSearch(rawQuery, cityKey = null) {
     const startTime = Date.now();
     const searchKey = sanitizeInput(rawQuery).toLowerCase();
+    const normalizedCityKey = cityKey ? sanitizeInput(cityKey).toLowerCase().replace(/\s+/g, '') : null;
+    const cityIsValid = normalizedCityKey && !!MARKET_ID_MAP[normalizedCityKey];
 
     if (!searchKey) {
         return { success: false, error: 'Invalid search query' };
     }
 
     const canonicalKey = resolveCanonicalKey(searchKey);
-    const cacheKey = canonicalKey || searchKey;
+    // City-specific searches get their own cache slot so Lahore and Multan
+    // prices for the same item never overwrite each other.
+    const cacheKey = cityIsValid
+        ? `${canonicalKey || searchKey}@${normalizedCityKey}`
+        : (canonicalKey || searchKey);
 
     const cached = getFromCache(cacheKey);
     if (cached) {
@@ -983,10 +1113,25 @@ async function performSmartSearch(rawQuery) {
             // internet price FIRST. Local database.json is only used as a fallback
             // (e.g. if the source is temporarily down) — it never overrides a live price. ----
             if (liveSourceAvailable) {
-                const internetResult = await withTimeout(
-                    searchOnInternet(canonicalKey, searchKey),
-                    CONFIG.INTERNET_SEARCH_TOTAL_BUDGET_MS
-                );
+                let internetResult = null;
+
+                // If the user picked a specific city AND we have keyword mapping
+                // for this item, try that city's own mandi price FIRST.
+                if (cityIsValid) {
+                    internetResult = await withTimeout(
+                        fetchCityPrice(canKey, normalizedCityKey),
+                        CONFIG.INTERNET_SOURCE_TIMEOUT_MS + 1000
+                    );
+                }
+
+                // Fall back to the generic (non-city-specific) multi-source search
+                // if no city was picked, or the city-specific lookup came up empty.
+                if (!internetResult) {
+                    internetResult = await withTimeout(
+                        searchOnInternet(canonicalKey, searchKey),
+                        CONFIG.INTERNET_SEARCH_TOTAL_BUDGET_MS
+                    );
+                }
 
                 if (internetResult) {
                     const existingLocal = searchInLocalDB(searchKey, canonicalKey)[0];
@@ -995,12 +1140,15 @@ async function performSmartSearch(rawQuery) {
                     const validation = validatePrice(internetResult.price, oldPrice);
                     if (validation.valid) {
                         const changeInfo = detectPriceChange(oldPrice, internetResult.price);
+                        const friendlyShop = internetResult.source.startsWith('amis-')
+                            ? internetResult.source.replace('amis-', '').charAt(0).toUpperCase() + internetResult.source.replace('amis-', '').slice(1) + ' Mandi'
+                            : internetResult.source;
 
                         const productData = {
                             name: canKey.charAt(0).toUpperCase() + canKey.slice(1),
-                            searchname: canKey,
+                            searchname: cityIsValid ? `${canKey}@${normalizedCityKey}` : canKey,
                             price: internetResult.price,
-                            shop: internetResult.source,
+                            shop: friendlyShop,
                             verified: false,
                             source: internetResult.source,
                             lastUpdated: internetResult.foundAt,
@@ -1154,6 +1302,7 @@ function handleRequest(req, res) {
     // ============ SEARCH API (SMART MULTILINGUAL + CACHE + INTERNET FALLBACK) ============
     if (pathname === '/api/search' && req.method === 'GET') {
         const searchQuery = query.q;
+        const cityQuery = query.city || null; // optional — old requests without ?city= keep working exactly as before
 
         if (!searchQuery) {
             res.writeHead(400);
@@ -1161,7 +1310,7 @@ function handleRequest(req, res) {
             return;
         }
 
-        performSmartSearch(searchQuery)
+        performSmartSearch(searchQuery, cityQuery)
             .then(result => {
                 if (result.success) {
                     res.writeHead(200);
@@ -1176,6 +1325,17 @@ function handleRequest(req, res) {
                 res.writeHead(500);
                 res.end(JSON.stringify({ success: false, message: 'Internal search error' }));
             });
+        return;
+    }
+
+    // ============ CITIES/MANDIS LIST (for city-picker dropdown) ============
+    if (pathname === '/api/cities' && req.method === 'GET') {
+        const cities = Object.keys(MARKET_ID_MAP).map(key => ({
+            key,
+            label: key.charAt(0).toUpperCase() + key.slice(1)
+        }));
+        res.writeHead(200);
+        res.end(JSON.stringify({ success: true, data: cities }));
         return;
     }
 
