@@ -111,53 +111,7 @@ const AMIS_COMMODITY_MAP = {
     loquat: 140,       // Loquat
     jamun: 104,        // Jaman
     narial: 120,       // Cocunut
-    nashpati: 98,       // Pear
-    // ---- Vegetables ----
-    aloo: 21,           // Potato Fresh
-    tamatar: 26,        // Tomato
-    baingan: 28,        // Brinjal
-    karela: 31,         // Bitter Gourd
-    lauki: 102,         // Bottle Gourd
-    kaddu: 33,          // Pumpkin
-    bhindi: 30,         // Lady Finger/Okra
-    gajar: 38,          // Carrot
-    gobi: 34,           // Cauliflower
-    band_gobi: 64,      // Cabbage
-    palak: 27,          // Spinach
-    shalgham: 36,       // Turnip
-    muli: 37,           // Radish
-    hari_mirch: 84,     // Green Chilli
-    shimla_mirch: 85,   // Capsicum
-    kheera: 74,         // Cucumber
-    matar: 35,          // Peas
-    tori: 103,          // Zucchini
-    arvi: 107,          // Cocoyam
-    hari_pyaz: 129,     // Green Onion
-    adrak: 68,          // Ginger (Thai)
-    // ---- Pulses (daalein) ----
-    masoor: 16,         // Masoor Pulse (local)
-    moong: 12,          // Moong Pulse
-    mash: 66,           // Mash Pulse (local)
-    chana_daal: 10,     // Gram Pulse
-    safed_chana: 8,     // Gram White (local)
-    besan: 99,          // Gram Flour
-    // ---- Grains ----
-    makai: 17,          // Maize
-    jau: 138,           // Barley
-    bajra: 18,          // Millet
-    jowar: 19,          // Sorghum
-    // ---- More fruits ----
-    khubani: 93,        // Apricot Yellow
-    khajoor: 81,        // Dates (Aseel)
-    musambi: 60,        // Musambi (sweet lime)
-    nimbu: 86,          // Lemon (Desi)
-    ber: 119,           // Jujube
-    // ---- Others ----
-    gur: 65,            // Jaggery
-    podina: 115,        // Mint
-    methi: 105,         // Fenugreek
-    til: 118,           // Sesame
-    ganna: 125          // Sugarcane
+    nashpati: 98       // Pear
     // NOTE: Pineapple (ananas) and Cherry are NOT tracked by AMIS Punjab at all —
     // no commodity ID exists for them on the source site, so they are intentionally
     // left out of this map. Searching them will correctly return "Product Not Found"
@@ -413,53 +367,7 @@ const ALIAS_MAP = {
     jamun: ['jamun', 'jaman', 'java plum', 'جامن'],
     cherry: ['cherry', 'چیری'],
     narial: ['narial', 'nariyal', 'coconut', 'ناریل'],
-    nashpati: ['nashpati', 'pear', 'ناشپاتی'],
-    // ---- Vegetables ----
-    aloo: ['aloo', 'alu', 'potato', 'آلو'],
-    tamatar: ['tamatar', 'tamater', 'tomato', 'ٹماٹر'],
-    baingan: ['baingan', 'brinjal', 'eggplant', 'بینگن'],
-    karela: ['karela', 'bitter gourd', 'کریلا'],
-    lauki: ['lauki', 'bottle gourd', 'کدو'],
-    kaddu: ['kaddu', 'pumpkin', 'کدو'],
-    bhindi: ['bhindi', 'okra', 'ladyfinger', "lady finger", 'بھنڈی'],
-    gajar: ['gajar', 'carrot', 'گاجر'],
-    gobi: ['gobi', 'phool gobi', 'cauliflower', 'گوبھی'],
-    band_gobi: ['band gobi', 'cabbage', 'بند گوبھی'],
-    palak: ['palak', 'spinach', 'پالک'],
-    shalgham: ['shalgham', 'turnip', 'شلغم'],
-    muli: ['muli', 'radish', 'مولی'],
-    hari_mirch: ['hari mirch', 'green chilli', 'green chili', 'ہری مرچ'],
-    shimla_mirch: ['shimla mirch', 'capsicum', 'bell pepper', 'شملہ مرچ'],
-    kheera: ['kheera', 'khira', 'cucumber', 'کھیرا'],
-    matar: ['matar', 'peas', 'مٹر'],
-    tori: ['tori', 'toriyan', 'zucchini', 'توری'],
-    arvi: ['arvi', 'cocoyam', 'اروی'],
-    hari_pyaz: ['hari pyaz', 'spring onion', 'green onion', 'ہری پیاز'],
-    adrak: ['adrak', 'ginger', 'ادرک'],
-    // ---- Pulses (daalein) ----
-    masoor: ['masoor', 'masoor daal', 'مسور'],
-    moong: ['moong', 'moong daal', 'مونگ'],
-    mash: ['mash', 'mash daal', 'ماش'],
-    chana_daal: ['chana daal', 'chane ki daal', 'چنے کی دال'],
-    safed_chana: ['safed chana', 'chickpea', 'چنا'],
-    besan: ['besan', 'gram flour', 'بیسن'],
-    // ---- Grains ----
-    makai: ['makai', 'corn', 'مکئی'],
-    jau: ['jau', 'jow', 'barley', 'جو'],
-    bajra: ['bajra', 'millet', 'باجرہ'],
-    jowar: ['jowar', 'sorghum', 'جوار'],
-    // ---- More fruits ----
-    khubani: ['khubani', 'apricot', 'خوبانی'],
-    khajoor: ['khajoor', 'dates', 'کھجور'],
-    musambi: ['musambi', 'sweet lime', 'موسمبی'],
-    nimbu: ['nimbu', 'lemon', 'لیموں'],
-    ber: ['ber', 'jujube', 'بیر'],
-    // ---- Others ----
-    gur: ['gur', 'jaggery', 'گڑ'],
-    podina: ['podina', 'mint', 'پودینہ'],
-    methi: ['methi', 'fenugreek', 'میتھی'],
-    til: ['til', 'sesame', 'تل'],
-    ganna: ['ganna', 'sugarcane', 'گنا']
+    nashpati: ['nashpati', 'pear', 'ناشپاتی']
 };
 
 function buildAliasLookup() {
