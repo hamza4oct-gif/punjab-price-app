@@ -1367,6 +1367,16 @@ function handleRequest(req, res) {
 
     const parsedUrl = url.parse(req.url, true);
     const pathname = parsedUrl.pathname;
+
+    // Never let browsers/proxies cache API responses. Without this, phones can
+    // keep showing an old price/answer even after the server has been fixed and
+    // redeployed â€” this is what was causing "the fix works on your end but not
+    // on my phone" symptoms.
+    if (pathname.startsWith('/api/')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
     const query = parsedUrl.query;
 
     // ============ API RATE LIMITER (applies to /api/* only) ============
