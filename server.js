@@ -6,26 +6,26 @@ const querystring = require('querystring');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
-// IMPORTANT: database.json and its backups live in /tmp â€” DELIBERATELY outside
+// IMPORTANT: database.json and its backups live in /tmp — DELIBERATELY outside
 // the source folder (__dirname). The hosting platform's file-watcher restarts
 // the server on ANY change inside the source folder, and it was not respecting
 // our nodemon.json ignore rules. That meant every write to database.json could
 // trigger a restart mid-write, truncating/corrupting the file. Writing to /tmp
-// instead means these writes are invisible to the watcher â€” no more restarts,
+// instead means these writes are invisible to the watcher — no more restarts,
 // no more corruption. (/tmp may be cleared on a fresh redeploy, but the app already
-// self-heals with default data in that case â€” see initDB() below.)
+// self-heals with default data in that case — see initDB() below.)
 const DB_FILE = path.join('/tmp', 'database.json');
 const BACKUP_DIR = path.join('/tmp', 'backups');
 
 // ============ GLOBAL CRASH SAFETY NET ============
 // Whatever else goes wrong anywhere in the app, the Node process itself must
-// never die â€” a dead process is what makes the hosting platform serve its own
+// never die — a dead process is what makes the hosting platform serve its own
 // generic HTML error page instead of our JSON, which breaks the frontend.
 process.on('uncaughtException', (err) => {
-    console.error('ðŸš¨ UNCAUGHT EXCEPTION (server stayed alive):', err && err.stack ? err.stack : err);
+    console.error('🚨 UNCAUGHT EXCEPTION (server stayed alive):', err && err.stack ? err.stack : err);
 });
 process.on('unhandledRejection', (reason) => {
-    console.error('ðŸš¨ UNHANDLED PROMISE REJECTION (server stayed alive):', reason);
+    console.error('🚨 UNHANDLED PROMISE REJECTION (server stayed alive):', reason);
 });
 
 // ============ LEVEL: CONFIG SUPPORT (centralized configurable values) ============
@@ -69,29 +69,29 @@ try {
             admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
         }
         firestoreDB = admin.firestore();
-        console.log('âœ… Firestore connected');
+        console.log('✅ Firestore connected');
     } else {
-        console.log('âš ï¸  Firestore service account not found, running in JSON-only mode');
+        console.log('⚠️  Firestore service account not found, running in JSON-only mode');
     }
 } catch (e) {
-    console.log('âš ï¸  Firestore module unavailable, running in JSON-only mode:', e.message);
+    console.log('⚠️  Firestore module unavailable, running in JSON-only mode:', e.message);
     firestoreDB = null;
 }
 
 // ============ AMIS PUNJAB COMMODITY ID MAP (REAL, VERIFIED) ============
 const AMIS_COMMODITY_MAP = {
     // NOTE: "atta" was previously mapped to AMIS's "Wheat" commodity (id 1).
-    // That is WRONG â€” AMIS's Wheat price is the WHOLESALE MANDI price of raw,
+    // That is WRONG — AMIS's Wheat price is the WHOLESALE MANDI price of raw,
     // unprocessed wheat grain, quoted per 40kg (maund), sold farmer-to-trader.
     // It is a completely different product from retail "Atta" (milled, packaged
     // flour) sold in shops, which is why the app's price didn't match real shop
     // prices. Atta now comes ONLY from Naheed (a real retail flour price) below.
     chini: 7,     // Sugar
     mirch: 29,    // Red Chilli Whole (Dry)
-    haldi: 123,   // Turmeric Whole (Ø«Ø§Ø¨Øª ÛÙ„Ø¯ÛŒ)
+    haldi: 123,   // Turmeric Whole (ثابت ہلدی)
     pyaz: 23,     // Onion
     lasun: 73,    // Garlic (Local)
-    dhaniya: 114, // Coriander (Ø¯Ú¾Ù†ÛŒØ§)
+    dhaniya: 114, // Coriander (دھنیا)
     chawal: 4,    // Rice (IRRI)
     // ---- Fruits (verified against amis.pk commodity list) ----
     anar: 95,          // Pomegranate Desi
@@ -158,7 +158,7 @@ const AMIS_COMMODITY_MAP = {
     methi: 105,         // Fenugreek
     til: 118,           // Sesame
     ganna: 125          // Sugarcane
-    // NOTE: Pineapple (ananas) and Cherry are NOT tracked by AMIS Punjab at all â€”
+    // NOTE: Pineapple (ananas) and Cherry are NOT tracked by AMIS Punjab at all —
     // no commodity ID exists for them on the source site, so they are intentionally
     // left out of this map. Searching them will correctly return "Product Not Found"
     // instead of a wrong price.
@@ -243,7 +243,7 @@ const TRUSTED_SOURCES = [
     {
         // Listed FIRST on purpose: naheed-pk gives an actual RETAIL shop price
         // (what a customer pays), which is what people expect from this app.
-        // amis-punjab (below) is WHOLESALE MANDI pricing â€” useful as a broader
+        // amis-punjab (below) is WHOLESALE MANDI pricing — useful as a broader
         // fallback for items with no retail source, but not what should win when
         // both are available for the same item.
         name: 'naheed-pk',
@@ -302,6 +302,15 @@ const TRUSTED_SOURCES = [
                 }
             });
 
+            // IMPORTANT: AMIS Punjab publishes ALL prices as "Rs/100Kg" (i.e. per
+            // quintal, confirmed on the live page: "1 Quintal = 100 Kg"), never
+            // per single kg. Without this conversion the app was showing the
+            // 100kg wholesale price as if it were the 1kg price (e.g. "Rs 22000"
+            // for besan instead of the correct ~Rs 220/kg).
+            if (foundPrice !== null) {
+                foundPrice = Math.round((foundPrice / 100) * 100) / 100;
+            }
+
             return foundPrice;
         }
     }
@@ -352,7 +361,7 @@ function recordSourceFailure(name) {
     health.score = Math.max(0, health.score - 10); // Level 18: score down on failure
     if (health.consecutiveFailures >= CONFIG.SOURCE_HEALTH.MAX_CONSECUTIVE_FAILURES_BEFORE_DISABLE) {
         health.disabled = true;
-        console.error(`ðŸš¨ Source "${name}" disabled after ${health.consecutiveFailures} consecutive failures`);
+        console.error(`🚨 Source "${name}" disabled after ${health.consecutiveFailures} consecutive failures`);
     }
 }
 
@@ -374,7 +383,7 @@ function getPrioritizedSources() {
 function attemptSourceRecovery() {
     sourceRegistry.forEach((health, name) => {
         if (health.disabled) {
-            console.log(`ðŸ”„ Auto-recovery: re-enabling source "${name}" for retry`);
+            console.log(`🔄 Auto-recovery: re-enabling source "${name}" for retry`);
             health.disabled = false;
             health.consecutiveFailures = 0;
         }
@@ -383,83 +392,83 @@ function attemptSourceRecovery() {
 
 // ============ ALIAS MAP (ENGLISH / URDU / ROMAN URDU) ============
 const ALIAS_MAP = {
-    atta: ['atta', 'aata', 'ata', 'flour', 'wheat flour', 'Ú¯Ù†Ø¯Ù… Ú©Ø§ Ø¢Ù¹Ø§', 'Ø¢Ù¹Ø§'],
-    chini: ['chini', 'cheeni', 'sugar', 'Ø´Ú©Ø±', 'Ú†ÛŒÙ†ÛŒ'],
-    namak: ['namak', 'salt', 'Ù†Ù…Ú©'],
-    mirch: ['mirch', 'mirchi', 'red chili', 'red chilli', 'chili powder', 'Ù…Ø±Ú†', 'Ù„Ø§Ù„ Ù…Ø±Ú†'],
-    haldi: ['haldi', 'turmeric', 'ÛÙ„Ø¯ÛŒ'],
-    pyaz: ['pyaz', 'pyaaz', 'onion', 'Ù¾ÛŒØ§Ø²'],
-    lasun: ['lasun', 'lehsun', 'garlic', 'Ù„ÛØ³Ù†'],
-    dhaniya: ['dhaniya', 'dhania', 'coriander', 'Ø¯Ú¾Ù†ÛŒØ§'],
-    malai: ['malai', 'cream', 'Ù…Ù„Ø§Ø¦ÛŒ'],
-    makhan: ['makhan', 'butter', 'Ù…Ú©Ú¾Ù†'],
-    chawal: ['chawal', 'chaawal', 'rice', 'Ú†Ø§ÙˆÙ„'],
-    anar: ['anar', 'anaar', 'pomegranate', 'Ø§Ù†Ø§Ø±'],
-    seb: ['seb', 'saib', 'apple', 'Ø³ÛŒØ¨'],
-    kela: ['kela', 'kaila', 'banana', 'Ú©ÛŒÙ„Ø§'],
-    aam: ['aam', 'mango', 'Ø¢Ù…'],
-    malta: ['malta', 'kinnow', 'kino', 'orange', 'Ù…Ø§Ù„Ù¹Ø§', 'Ú©ÛŒÙ†Ùˆ'],
-    angoor: ['angoor', 'angur', 'grapes', 'Ø§Ù†Ú¯ÙˆØ±'],
-    tarbooz: ['tarbooz', 'tarbuz', 'watermelon', 'ØªØ±Ø¨ÙˆØ²'],
-    kharbooza: ['kharbooza', 'kharbuza', 'muskmelon', 'melon', 'Ø®Ø±Ø¨ÙˆØ²Û'],
-    amrood: ['amrood', 'amrud', 'guava', 'Ø§Ù…Ø±ÙˆØ¯'],
-    papita: ['papita', 'papaya', 'Ù¾Ù¾ÛŒØªØ§'],
-    aarhoo: ['aarhoo', 'aroo', 'peach', 'Ø¢Ú‘Ùˆ'],
-    aloo_bukhara: ['aloo bukhara', 'aalu bukhara', 'plum', 'Ø¢Ù„Ùˆ Ø¨Ø®Ø§Ø±Ø§'],
-    lychee: ['lychee', 'litchi', 'Ù„ÛŒÚ†ÛŒ'],
-    strawberry: ['strawberry', 'Ø³Ù¹Ø±Ø§Ø¨ÛŒØ±ÛŒ'],
-    ananas: ['ananas', 'pineapple', 'Ø§Ù†Ø§Ù†Ø§Ø³'],
-    loquat: ['loquat', 'lokat', 'Ù„ÙˆÚ©Ø§Ù¹'],
-    jamun: ['jamun', 'jaman', 'java plum', 'Ø¬Ø§Ù…Ù†'],
-    cherry: ['cherry', 'Ú†ÛŒØ±ÛŒ'],
-    narial: ['narial', 'nariyal', 'coconut', 'Ù†Ø§Ø±ÛŒÙ„'],
-    nashpati: ['nashpati', 'pear', 'Ù†Ø§Ø´Ù¾Ø§ØªÛŒ'],
+    atta: ['atta', 'aata', 'ata', 'flour', 'wheat flour', 'گندم کا آٹا', 'آٹا'],
+    chini: ['chini', 'cheeni', 'sugar', 'شکر', 'چینی'],
+    namak: ['namak', 'salt', 'نمک'],
+    mirch: ['mirch', 'mirchi', 'red chili', 'red chilli', 'chili powder', 'مرچ', 'لال مرچ'],
+    haldi: ['haldi', 'turmeric', 'ہلدی'],
+    pyaz: ['pyaz', 'pyaaz', 'onion', 'پیاز'],
+    lasun: ['lasun', 'lehsun', 'garlic', 'لہسن'],
+    dhaniya: ['dhaniya', 'dhania', 'coriander', 'دھنیا'],
+    malai: ['malai', 'cream', 'ملائی'],
+    makhan: ['makhan', 'butter', 'مکھن'],
+    chawal: ['chawal', 'chaawal', 'rice', 'چاول'],
+    anar: ['anar', 'anaar', 'pomegranate', 'انار'],
+    seb: ['seb', 'saib', 'apple', 'سیب'],
+    kela: ['kela', 'kaila', 'banana', 'کیلا'],
+    aam: ['aam', 'mango', 'آم'],
+    malta: ['malta', 'kinnow', 'kino', 'orange', 'مالٹا', 'کینو'],
+    angoor: ['angoor', 'angur', 'grapes', 'انگور'],
+    tarbooz: ['tarbooz', 'tarbuz', 'watermelon', 'تربوز'],
+    kharbooza: ['kharbooza', 'kharbuza', 'muskmelon', 'melon', 'خربوزہ'],
+    amrood: ['amrood', 'amrud', 'guava', 'امرود'],
+    papita: ['papita', 'papaya', 'پپیتا'],
+    aarhoo: ['aarhoo', 'aroo', 'peach', 'آڑو'],
+    aloo_bukhara: ['aloo bukhara', 'aalu bukhara', 'plum', 'آلو بخارا'],
+    lychee: ['lychee', 'litchi', 'لیچی'],
+    strawberry: ['strawberry', 'سٹرابیری'],
+    ananas: ['ananas', 'pineapple', 'اناناس'],
+    loquat: ['loquat', 'lokat', 'لوکاٹ'],
+    jamun: ['jamun', 'jaman', 'java plum', 'جامن'],
+    cherry: ['cherry', 'چیری'],
+    narial: ['narial', 'nariyal', 'coconut', 'ناریل'],
+    nashpati: ['nashpati', 'pear', 'ناشپاتی'],
     // ---- Vegetables ----
-    aloo: ['aloo', 'alu', 'potato', 'Ø¢Ù„Ùˆ'],
-    tamatar: ['tamatar', 'tamater', 'tomato', 'Ù¹Ù…Ø§Ù¹Ø±'],
-    baingan: ['baingan', 'brinjal', 'eggplant', 'Ø¨ÛŒÙ†Ú¯Ù†'],
-    karela: ['karela', 'bitter gourd', 'Ú©Ø±ÛŒÙ„Ø§'],
-    lauki: ['lauki', 'bottle gourd', 'Ú©Ø¯Ùˆ'],
-    kaddu: ['kaddu', 'pumpkin', 'Ú©Ø¯Ùˆ'],
-    bhindi: ['bhindi', 'okra', 'ladyfinger', "lady finger", 'Ø¨Ú¾Ù†ÚˆÛŒ'],
-    gajar: ['gajar', 'carrot', 'Ú¯Ø§Ø¬Ø±'],
-    gobi: ['gobi', 'phool gobi', 'cauliflower', 'Ú¯ÙˆØ¨Ú¾ÛŒ'],
-    band_gobi: ['band gobi', 'cabbage', 'Ø¨Ù†Ø¯ Ú¯ÙˆØ¨Ú¾ÛŒ'],
-    palak: ['palak', 'spinach', 'Ù¾Ø§Ù„Ú©'],
-    shalgham: ['shalgham', 'turnip', 'Ø´Ù„ØºÙ…'],
-    muli: ['muli', 'radish', 'Ù…ÙˆÙ„ÛŒ'],
-    hari_mirch: ['hari mirch', 'green chilli', 'green chili', 'ÛØ±ÛŒ Ù…Ø±Ú†'],
-    shimla_mirch: ['shimla mirch', 'capsicum', 'bell pepper', 'Ø´Ù…Ù„Û Ù…Ø±Ú†'],
-    kheera: ['kheera', 'khira', 'cucumber', 'Ú©Ú¾ÛŒØ±Ø§'],
-    matar: ['matar', 'peas', 'Ù…Ù¹Ø±'],
-    tori: ['tori', 'toriyan', 'zucchini', 'ØªÙˆØ±ÛŒ'],
-    arvi: ['arvi', 'cocoyam', 'Ø§Ø±ÙˆÛŒ'],
-    hari_pyaz: ['hari pyaz', 'spring onion', 'green onion', 'ÛØ±ÛŒ Ù¾ÛŒØ§Ø²'],
-    adrak: ['adrak', 'ginger', 'Ø§Ø¯Ø±Ú©'],
+    aloo: ['aloo', 'alu', 'potato', 'آلو'],
+    tamatar: ['tamatar', 'tamater', 'tomato', 'ٹماٹر'],
+    baingan: ['baingan', 'brinjal', 'eggplant', 'بینگن'],
+    karela: ['karela', 'bitter gourd', 'کریلا'],
+    lauki: ['lauki', 'bottle gourd', 'کدو'],
+    kaddu: ['kaddu', 'pumpkin', 'کدو'],
+    bhindi: ['bhindi', 'okra', 'ladyfinger', "lady finger", 'بھنڈی'],
+    gajar: ['gajar', 'carrot', 'گاجر'],
+    gobi: ['gobi', 'phool gobi', 'cauliflower', 'گوبھی'],
+    band_gobi: ['band gobi', 'cabbage', 'بند گوبھی'],
+    palak: ['palak', 'spinach', 'پالک'],
+    shalgham: ['shalgham', 'turnip', 'شلغم'],
+    muli: ['muli', 'radish', 'مولی'],
+    hari_mirch: ['hari mirch', 'green chilli', 'green chili', 'ہری مرچ'],
+    shimla_mirch: ['shimla mirch', 'capsicum', 'bell pepper', 'شملہ مرچ'],
+    kheera: ['kheera', 'khira', 'cucumber', 'کھیرا'],
+    matar: ['matar', 'peas', 'مٹر'],
+    tori: ['tori', 'toriyan', 'zucchini', 'توری'],
+    arvi: ['arvi', 'cocoyam', 'اروی'],
+    hari_pyaz: ['hari pyaz', 'spring onion', 'green onion', 'ہری پیاز'],
+    adrak: ['adrak', 'ginger', 'ادرک'],
     // ---- Pulses (daalein) ----
-    masoor: ['masoor', 'masoor daal', 'Ù…Ø³ÙˆØ±'],
-    moong: ['moong', 'moong daal', 'Ù…ÙˆÙ†Ú¯'],
-    mash: ['mash', 'mash daal', 'Ù…Ø§Ø´'],
-    chana_daal: ['chana daal', 'chane ki daal', 'Ú†Ù†Û’ Ú©ÛŒ Ø¯Ø§Ù„'],
-    safed_chana: ['safed chana', 'chickpea', 'Ú†Ù†Ø§'],
-    besan: ['besan', 'gram flour', 'Ø¨ÛŒØ³Ù†'],
+    masoor: ['masoor', 'masoor daal', 'مسور'],
+    moong: ['moong', 'moong daal', 'مونگ'],
+    mash: ['mash', 'mash daal', 'ماش'],
+    chana_daal: ['chana daal', 'chane ki daal', 'چنے کی دال'],
+    safed_chana: ['safed chana', 'chickpea', 'چنا'],
+    besan: ['besan', 'gram flour', 'بیسن'],
     // ---- Grains ----
-    makai: ['makai', 'corn', 'Ù…Ú©Ø¦ÛŒ'],
-    jau: ['jau', 'jow', 'barley', 'Ø¬Ùˆ'],
-    bajra: ['bajra', 'millet', 'Ø¨Ø§Ø¬Ø±Û'],
-    jowar: ['jowar', 'sorghum', 'Ø¬ÙˆØ§Ø±'],
+    makai: ['makai', 'corn', 'مکئی'],
+    jau: ['jau', 'jow', 'barley', 'جو'],
+    bajra: ['bajra', 'millet', 'باجرہ'],
+    jowar: ['jowar', 'sorghum', 'جوار'],
     // ---- More fruits ----
-    khubani: ['khubani', 'apricot', 'Ø®ÙˆØ¨Ø§Ù†ÛŒ'],
-    khajoor: ['khajoor', 'dates', 'Ú©Ú¾Ø¬ÙˆØ±'],
-    musambi: ['musambi', 'sweet lime', 'Ù…ÙˆØ³Ù…Ø¨ÛŒ'],
-    nimbu: ['nimbu', 'lemon', 'Ù„ÛŒÙ…ÙˆÚº'],
-    ber: ['ber', 'jujube', 'Ø¨ÛŒØ±'],
+    khubani: ['khubani', 'apricot', 'خوبانی'],
+    khajoor: ['khajoor', 'dates', 'کھجور'],
+    musambi: ['musambi', 'sweet lime', 'موسمبی'],
+    nimbu: ['nimbu', 'lemon', 'لیموں'],
+    ber: ['ber', 'jujube', 'بیر'],
     // ---- Others ----
-    gur: ['gur', 'jaggery', 'Ú¯Ú‘'],
-    podina: ['podina', 'mint', 'Ù¾ÙˆØ¯ÛŒÙ†Û'],
-    methi: ['methi', 'fenugreek', 'Ù…ÛŒØªÚ¾ÛŒ'],
-    til: ['til', 'sesame', 'ØªÙ„'],
-    ganna: ['ganna', 'sugarcane', 'Ú¯Ù†Ø§']
+    gur: ['gur', 'jaggery', 'گڑ'],
+    podina: ['podina', 'mint', 'پودینہ'],
+    methi: ['methi', 'fenugreek', 'میتھی'],
+    til: ['til', 'sesame', 'تل'],
+    ganna: ['ganna', 'sugarcane', 'گنا']
 };
 
 function buildAliasLookup() {
@@ -542,13 +551,13 @@ function cleanupExpiredCache() {
             removed++;
         }
     }
-    if (removed > 0) console.log(`ðŸ§¹ Cache cleanup: removed ${removed} expired entries`);
+    if (removed > 0) console.log(`🧹 Cache cleanup: removed ${removed} expired entries`);
 }
 
 function warmupCache() {
     const db = readDB();
     db.products.forEach(p => setToCache(p.searchname, [p]));
-    console.log(`ðŸ”¥ Cache warmed up with ${db.products.length} products`);
+    console.log(`🔥 Cache warmed up with ${db.products.length} products`);
 }
 
 // ============ CONCURRENT REQUEST DEDUPLICATION (LEVEL 5: INTERNET SEARCH LOCK) ============
@@ -584,7 +593,7 @@ function initDB() {
         return;
     }
 
-    // Existing file â€” try to read/parse it. If it's corrupted (e.g. an
+    // Existing file — try to read/parse it. If it's corrupted (e.g. an
     // interrupted save left it truncated), DO NOT crash the server.
     // Instead: try the latest backup first, and only fall back to a fresh
     // default database.json if no usable backup exists.
@@ -601,28 +610,28 @@ function initDB() {
             fs.writeFileSync(DB_FILE, migratedJson);
         }
     } catch (e) {
-        console.error('ðŸš¨ database.json is corrupted/invalid:', e.message);
+        console.error('🚨 database.json is corrupted/invalid:', e.message);
 
         // Save the broken file for inspection, then attempt recovery.
         try {
             fs.copyFileSync(DB_FILE, `${DB_FILE}.corrupt-${Date.now()}.bak`);
         } catch (copyErr) {
-            console.error('âš ï¸ Could not save a copy of the corrupted file:', copyErr.message);
+            console.error('⚠️ Could not save a copy of the corrupted file:', copyErr.message);
         }
 
         const restored = restoreLatestBackup();
         if (restored) {
             try {
                 JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); // verify the backup itself is valid
-                console.log('âœ… Recovered database.json from latest backup');
+                console.log('✅ Recovered database.json from latest backup');
                 return;
             } catch (verifyErr) {
-                console.error('âš ï¸ Backup was also invalid, falling back to defaults:', verifyErr.message);
+                console.error('⚠️ Backup was also invalid, falling back to defaults:', verifyErr.message);
             }
         }
 
         writeDefaultDB();
-        console.log('â™»ï¸ No usable backup found â€” recreated a fresh default database.json');
+        console.log('♻️ No usable backup found — recreated a fresh default database.json');
     }
 }
 
@@ -651,7 +660,7 @@ function readDB() {
     try {
         return ensureSchema(JSON.parse(fs.readFileSync(DB_FILE, 'utf8')));
     } catch (e) {
-        console.error('ðŸš¨ readDB() found corrupted database.json, repairing:', e.message);
+        console.error('🚨 readDB() found corrupted database.json, repairing:', e.message);
         initDB();
         return ensureSchema(JSON.parse(fs.readFileSync(DB_FILE, 'utf8')));
     }
@@ -670,7 +679,7 @@ function backupDB() {
             fs.unlinkSync(path.join(BACKUP_DIR, files.shift()));
         }
     } catch (e) {
-        console.error('âš ï¸ Backup failed:', e.message);
+        console.error('⚠️ Backup failed:', e.message);
     }
 }
 
@@ -680,7 +689,7 @@ function restoreLatestBackup() {
     if (files.length === 0) return false;
     const latest = files[files.length - 1];
     fs.copyFileSync(path.join(BACKUP_DIR, latest), DB_FILE);
-    console.log(`â™»ï¸ Restored database.json from backup: ${latest}`);
+    console.log(`♻️ Restored database.json from backup: ${latest}`);
     return true;
 }
 
@@ -725,7 +734,7 @@ async function processQueue() {
             const result = await task.run();
             task.resolve(result);
         } catch (e) {
-            console.error(`âš ï¸ Queue task failed for key "${task.key}":`, e.message);
+            console.error(`⚠️ Queue task failed for key "${task.key}":`, e.message);
             task.reject(e);
         } finally {
             if (task.dedupe !== false) queuedKeys.delete(task.key);
@@ -913,7 +922,7 @@ function isRateLimited(ip) {
 // ============ CITY-SPECIFIC PRICE LOOKUP ============
 // Fetches the FULL commodity list for one city's mandi, then finds the row
 // matching our item and extracts its price. Used only when the user picked a
-// specific city â€” otherwise the app keeps using the existing province-wide source.
+// specific city — otherwise the app keeps using the existing province-wide source.
 async function fetchCityPrice(canonicalKey, cityKey) {
     const marketId = MARKET_ID_MAP[cityKey];
     const keywords = CITY_COMMODITY_KEYWORDS[canonicalKey];
@@ -955,12 +964,14 @@ async function fetchCityPrice(canonicalKey, cityKey) {
 
         const sourceName = `amis-${cityKey}`;
         if (foundPrice !== null) {
+            // Same unit fix as the main AMIS source: prices are per 100kg (quintal).
+            foundPrice = Math.round((foundPrice / 100) * 100) / 100;
             recordSourceSuccess(sourceName, responseTimeMs);
             return { price: foundPrice, source: sourceName, foundAt: new Date().toISOString(), sourceScore: 100 };
         }
         return null;
     } catch (e) {
-        console.error(`âš ï¸ City price lookup for "${cityKey}" failed:`, e.message);
+        console.error(`⚠️ City price lookup for "${cityKey}" failed:`, e.message);
         return null;
     }
 }
@@ -968,7 +979,7 @@ async function fetchCityPrice(canonicalKey, cityKey) {
 // ============ DOES THIS ITEM HAVE A LIVE INTERNET SOURCE? ============
 // Used to decide search priority: if an item has a real trusted source mapped
 // (AMIS/Naheed), we should trust a LIVE price over whatever is sitting in
-// database.json â€” local data is only a fallback, never an override.
+// database.json — local data is only a fallback, never an override.
 function hasInternetSource(canonicalKey) {
     if (!canonicalKey) return false;
     return TRUSTED_SOURCES.some(source => {
@@ -1005,7 +1016,7 @@ async function searchInFirestore(searchKey, canonicalKey) {
         const doc = snapshot.docs[0];
         return { id: doc.id, ...doc.data() };
     } catch (e) {
-        console.error('âš ï¸ Firestore search error:', e.message);
+        console.error('⚠️ Firestore search error:', e.message);
         return null;
     }
 }
@@ -1026,7 +1037,7 @@ async function saveToFirestore(product) {
             await firestoreDB.collection('products').add(product);
         }
     } catch (e) {
-        console.error('âš ï¸ Firestore save error:', e.message);
+        console.error('⚠️ Firestore save error:', e.message);
     }
 }
 
@@ -1057,7 +1068,7 @@ function saveToLocalDB(productData) {
 
 // ============ SEARCH TIMEOUT BUDGET ============
 // Ensures internet search NEVER makes the overall request hang longer than
-// CONFIG.INTERNET_SEARCH_TOTAL_BUDGET_MS â€” protects against the hosting
+// CONFIG.INTERNET_SEARCH_TOTAL_BUDGET_MS — protects against the hosting
 // platform's own gateway timeout kicking in and returning an HTML error page
 // (which breaks the frontend's JSON parsing) instead of our own clean
 // "Product Not Found" JSON response.
@@ -1074,7 +1085,7 @@ async function searchOnInternet(canonicalKey, rawSearchKey) {
     const prioritizedSources = getPrioritizedSources();
 
     // Query all applicable sources IN PARALLEL (not one-by-one). This means total
-    // wait time is roughly the slowest single source, not the sum of all of them â€”
+    // wait time is roughly the slowest single source, not the sum of all of them —
     // which lets us afford more retry attempts per source within the same overall
     // time budget, making a single search much more likely to succeed on the first try.
     const attempts = prioritizedSources.map(async (source) => {
@@ -1105,7 +1116,7 @@ async function searchOnInternet(canonicalKey, rawSearchKey) {
             return null;
         } catch (e) {
             recordSourceFailure(source.name);
-            console.error(`âš ï¸ Internet source "${source.name}" failed after retries:`, e.message);
+            console.error(`⚠️ Internet source "${source.name}" failed after retries:`, e.message);
             return null;
         }
     });
@@ -1151,11 +1162,11 @@ async function triggerBackgroundRefresh(cacheKey) {
                 await saveToFirestore(productData);
                 const savedProduct = saveToLocalDB(productData);
                 setToCache(cacheKey, [savedProduct]);
-                console.log(`ðŸ” Background refresh updated "${canonicalKey}"`);
+                console.log(`🔁 Background refresh updated "${canonicalKey}"`);
             }
         });
     } catch (e) {
-        console.error(`âš ï¸ Background refresh failed for "${cacheKey}":`, e.message);
+        console.error(`⚠️ Background refresh failed for "${cacheKey}":`, e.message);
     }
 }
 
@@ -1169,7 +1180,7 @@ function finalizeSearchTracking(query, canonicalKey, resolvedFrom, found, respon
             recordAnalytics(db, resolvedFrom, responseTimeMs, found);
             writeDB(db);
         }
-    }).catch(e => console.error('âš ï¸ Search tracking failed:', e.message));
+    }).catch(e => console.error('⚠️ Search tracking failed:', e.message));
 }
 
 async function performSmartSearch(rawQuery, cityKey = null) {
@@ -1213,7 +1224,7 @@ async function performSmartSearch(rawQuery, cityKey = null) {
 
             // ---- PRIORITY: if a real trusted source exists for this item, try LIVE
             // internet price FIRST. Local database.json is only used as a fallback
-            // (e.g. if the source is temporarily down) â€” it never overrides a live price. ----
+            // (e.g. if the source is temporarily down) — it never overrides a live price. ----
             if (liveSourceAvailable) {
                 let internetResult = null;
 
@@ -1276,23 +1287,23 @@ async function performSmartSearch(rawQuery, cityKey = null) {
                         finalizeSearchTracking(rawQuery, canonicalKey, 'internet', true, Date.now() - startTime);
                         return { success: true, data: [savedProduct], resolvedFrom: 'internet' };
                     }
-                    console.error(`ðŸš« Price validation failed for "${canKey}": ${validation.reason}`);
+                    console.error(`🚫 Price validation failed for "${canKey}": ${validation.reason}`);
                 }
 
-                // Live source failed/unavailable this time â€” fall back to whatever
+                // Live source failed/unavailable this time — fall back to whatever
                 // we have locally (last known price) instead of a hard failure.
                 const fallbackResults = searchInLocalDB(searchKey, canonicalKey);
                 if (fallbackResults.length > 0) {
                     setToCache(cacheKey, fallbackResults);
                     finalizeSearchTracking(rawQuery, canonicalKey, 'database.json (fallback)', true, Date.now() - startTime);
-                    return { success: true, data: fallbackResults, resolvedFrom: 'database.json (fallback â€” live source unavailable)' };
+                    return { success: true, data: fallbackResults, resolvedFrom: 'database.json (fallback — live source unavailable)' };
                 }
 
                 finalizeSearchTracking(rawQuery, canonicalKey, 'not_found', false, Date.now() - startTime);
                 return { success: false, message: 'Product Not Found' };
             }
 
-            // ---- No live source mapped for this item at all â€” local database is
+            // ---- No live source mapped for this item at all — local database is
             // the only option, exactly as before. ----
             const localResults = searchInLocalDB(searchKey, canonicalKey);
             if (localResults.length > 0) {
@@ -1316,7 +1327,7 @@ async function performSmartSearch(rawQuery, cityKey = null) {
 function startScheduler() {
     // Auto Sync every 3 hours
     setInterval(() => {
-        console.log('ðŸ”„ Scheduled auto-sync check:', new Date().toISOString());
+        console.log('🔄 Scheduled auto-sync check:', new Date().toISOString());
         attemptSourceRecovery();
     }, CONFIG.AUTO_SYNC_INTERVAL_MS);
 
@@ -1326,7 +1337,7 @@ function startScheduler() {
     // Auto Recovery Engine check
     setInterval(attemptSourceRecovery, CONFIG.SOURCE_HEALTH.RECOVERY_CHECK_INTERVAL_MS);
 
-    console.log('â±ï¸  Smart Scheduler started (auto-sync every 3h, cache cleanup every 15m)');
+    console.log('⏱️  Smart Scheduler started (auto-sync every 3h, cache cleanup every 15m)');
 }
 
 // Create server
@@ -1334,7 +1345,7 @@ const server = http.createServer((req, res) => {
     try {
         handleRequest(req, res);
     } catch (err) {
-        console.error('ðŸš¨ Synchronous error in request handler (caught, server stayed alive):', err);
+        console.error('🚨 Synchronous error in request handler (caught, server stayed alive):', err);
         try {
             if (!res.headersSent) {
                 res.setHeader('Content-Type', 'application/json');
@@ -1342,7 +1353,7 @@ const server = http.createServer((req, res) => {
             }
             res.end(JSON.stringify({ success: false, message: 'Internal server error' }));
         } catch (writeErr) {
-            console.error('âš ï¸ Could not send error response:', writeErr.message);
+            console.error('⚠️ Could not send error response:', writeErr.message);
         }
     }
 });
@@ -1370,7 +1381,7 @@ function handleRequest(req, res) {
 
     // Never let browsers/proxies cache API responses. Without this, phones can
     // keep showing an old price/answer even after the server has been fixed and
-    // redeployed â€” this is what was causing "the fix works on your end but not
+    // redeployed — this is what was causing "the fix works on your end but not
     // on my phone" symptoms.
     if (pathname.startsWith('/api/')) {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -1391,7 +1402,7 @@ function handleRequest(req, res) {
     }
 
     // ============ SERVE FRONTEND (index.html) ============
-    // Ab yeh server khud aapki index.html bhi dikhata hai â€” isliye phone/computer
+    // Ab yeh server khud aapki index.html bhi dikhata hai — isliye phone/computer
     // kisi bhi browser mein seedha http://<IP>:5000 khol kar poori app chal sakti hai,
     // aur "content://" ya "file://" se kholne wale purane errors khatam ho jayenge.
     if ((pathname === '/' || pathname === '/index.html') && req.method === 'GET') {
@@ -1414,7 +1425,7 @@ function handleRequest(req, res) {
     // ============ SEARCH API (SMART MULTILINGUAL + CACHE + INTERNET FALLBACK) ============
     if (pathname === '/api/search' && req.method === 'GET') {
         const searchQuery = query.q;
-        const cityQuery = query.city || null; // optional â€” old requests without ?city= keep working exactly as before
+        const cityQuery = query.city || null; // optional — old requests without ?city= keep working exactly as before
 
         if (!searchQuery) {
             res.writeHead(400);
@@ -1433,7 +1444,7 @@ function handleRequest(req, res) {
                 }
             })
             .catch(e => {
-                console.error('âš ï¸ Search pipeline error:', e.message);
+                console.error('⚠️ Search pipeline error:', e.message);
                 res.writeHead(500);
                 res.end(JSON.stringify({ success: false, message: 'Internal search error' }));
             });
@@ -1787,9 +1798,9 @@ function handleRequest(req, res) {
 }
 
 server.listen(CONFIG.PORT, () => {
-    console.log(`âœ… Server running on http://localhost:${CONFIG.PORT}`);
-    console.log(`ðŸ“± Isi WiFi par apne phone se: http://<is-computer-ka-IP>:${CONFIG.PORT}`);
-    console.log(`ðŸ“¡ Enterprise backend v${CONFIG.VERSION} ready!`);
+    console.log(`✅ Server running on http://localhost:${CONFIG.PORT}`);
+    console.log(`📱 Isi WiFi par apne phone se: http://<is-computer-ka-IP>:${CONFIG.PORT}`);
+    console.log(`📡 Enterprise backend v${CONFIG.VERSION} ready!`);
     warmupCache();
     startScheduler();
 });
