@@ -325,18 +325,6 @@ body { margin: 0; font-family: Arial, sans-serif; }
 #page-login .login-google-btn:hover { background: #f9fafb; }
 #page-login #loginPageMsg { margin-top: 16px; font-size: 14px; font-weight: bold; text-align: center; }
 
-/* ======================================================================
-   SPA VISIBILITY FIX (the only functional change in this file)
-   #page-login sets "display: flex" directly on its own ID above. Since
-   an ID selector is more specific than the ".spa-page"/".spa-page.active"
-   class rules near the top, that "display: flex" was always winning,
-   even when #page-login didn't have the "active" class — so the login
-   page (and its background) stayed visible/occupying space underneath
-   whatever page was actually open, and appeared when scrolling.
-   These rules use equal specificity to each page's own ID rule and are
-   placed after them in the stylesheet, so they reliably win the cascade
-   and guarantee only the page with the "active" class is ever visible.
-   ====================================================================== */
 #page-home, #page-shopkeeper, #page-admin, #page-login { display: none; }
 #page-home.active { display: block; }
 #page-shopkeeper.active { display: block; }
@@ -660,9 +648,8 @@ async function startSearch() {
     const result = document.getElementById("result");
 
     let input = inputBox.value.trim();
-    let searchKey = input.toLowerCase();
 
-    if (searchKey === "") {
+    if (input === "") {
         result.innerHTML = "<span style='color: #dc2626;'>❌ براہ کرم کچھ لکھیں</span>";
         return;
     }
@@ -670,48 +657,24 @@ async function startSearch() {
     result.innerHTML = "<span style='color: #1e40af;'>⏳ تلاش جاری ہے... براہ کرم انتظار کریں</span>";
 
     try {
-        const querySnapshot = await db.collection("Document").get();
-        let foundData = null;
+        const response = await fetch("/api/search?q=" + encodeURIComponent(input));
+        const json = await response.json();
 
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            Object.keys(data).forEach((key) => {
-                let fieldValue = String(data[key]).toLowerCase();
-                if (fieldValue.includes(searchKey)) {
-                    foundData = data;
-                }
-            });
-        });
-
-        if (foundData) {
-            let price = "معلوم نہیں";
-            let shop = "معلوم نہیں";
-            let originalName = foundData.name || foundData.searchname || input;
-
-            Object.keys(foundData).forEach((key) => {
-                let lowerKey = key.toLowerCase();
-                if (lowerKey === "price" || lowerKey === "rate" || lowerKey === "cost") {
-                    price = foundData[key];
-                }
-                if (lowerKey === "shop" || lowerKey === "market" || lowerKey === "location" || lowerKey === "store") {
-                    shop = foundData[key];
-                }
-            });
-
-            result.innerHTML = `
-                <div style="text-align: right; direction: rtl;">
-                    🛍️ <b>پروڈکٹ:</b> ${originalName}<br>
-                    💰 <b>قیمت:</b> Rs ${price}<br>
-                    🏪 <b>دکان/مارکیٹ:</b> ${shop} ${foundData.verified ? "✅" : ""}
-                </div>
-            `;
+        if (json.success && json.data && json.data.length > 0) {
+            const item = json.data[0];
+            result.innerHTML =
+                "<div style=\"text-align: right; direction: rtl;\">" +
+                "🛍️ <b>پروڈکٹ:</b> " + escapeHtml(item.name || input) + "<br>" +
+                "💰 <b>قیمت:</b> Rs " + escapeHtml(String(item.price)) + "<br>" +
+                "🏪 <b>دکان/مارکیٹ:</b> " + escapeHtml(item.shop || "—") + " " + (item.verified ? "✅" : "") +
+                "</div>";
         } else {
             result.innerHTML = "<span style='color: #d97706;'>❌ کوئی نتیجہ نہیں ملا، براہ کرم نام یا املا (Spelling) چیک کریں۔</span>";
         }
 
     } catch (error) {
-        console.error("Firebase Error:", error);
-        result.innerHTML = `<span style='color: #dc2626;'>❌ سرور سے رابطہ ناکام رہا۔<br><small>${error.message}</small></span>`;
+        console.error("Search Error:", error);
+        result.innerHTML = "<span style='color: #dc2626;'>❌ سرور سے رابطہ ناکام رہا۔<br><small>" + escapeHtml(error.message) + "</small></span>";
     }
 }
 
@@ -720,16 +683,17 @@ let calcExpression = "";
 
 async function loadCalculatorProducts() {
     try {
-        const snapshot = await db.collection("Document").get();
+        const response = await fetch("/api/products");
+        const json = await response.json();
         calcProducts = [];
-        snapshot.forEach((doc) => {
-            const d = doc.data();
-            const name = d.name;
-            const price = parseFloat(d.price);
-            if (name && !isNaN(price)) {
-                calcProducts.push({ name: name, price: price });
-            }
-        });
+        if (json.success && Array.isArray(json.data)) {
+            json.data.forEach((p) => {
+                const price = parseFloat(p.price);
+                if (p.name && !isNaN(price)) {
+                    calcProducts.push({ name: p.name, price: price });
+                }
+            });
+        }
     } catch (err) {
         console.error("Calculator products load error:", err);
     }
@@ -769,14 +733,12 @@ function calcLookupPreview() {
 
     if (product) {
         const total = product.price * qty;
-        resultEl.innerHTML = `
-            ✅ <b>${product.name}</b> × ${qty} = <b>Rs ${total.toFixed(0)}</b>
-            <button onclick="calcUseValue(${total})" style="margin-top:6px; background:#16a34a;">
-                Calculator mein daalen
-            </button>
-        `;
+        resultEl.innerHTML =
+            "✅ <b>" + product.name + "</b> × " + qty + " = <b>Rs " + total.toFixed(0) + "</b>" +
+            "<button onclick=\"calcUseValue(" + total + ")\" style=\"margin-top:6px; background:#16a34a;\">" +
+            "Calculator mein daalen</button>";
     } else {
-        resultEl.innerHTML = `<span style="color:#d97706;">Product nahi mila...</span>`;
+        resultEl.innerHTML = "<span style=\"color:#d97706;\">Product nahi mila...</span>";
     }
 }
 
@@ -835,47 +797,36 @@ function showPage(page) {
 
     if (page === "calculator") {
         calcExpression = "";
-        result.innerHTML = `
-            <div style="text-align:left;">
-                <b>🧮 Pro Calculator</b>
-
-                <p style="font-size:13px; color:#666; margin:10px 0 4px;">
-                    Product ka naam likhen (jaise: Atta 2 kg):
-                </p>
-                <input type="text" id="calcSearchBox" placeholder="jaise: Atta 1 kg" autocomplete="off" oninput="calcLookupPreview()">
-                <div id="calcLookupResult" style="font-size:14px; margin-top:8px;"></div>
-
-                <div style="background:#1e293b; border-radius:12px; padding:16px; margin-top:18px;">
-                    <div id="calcDisplay" style="color:white; font-size:30px; text-align:right; min-height:42px; word-wrap:break-word;">0</div>
-                </div>
-
-                <div class="calc-grid">
-                    <button class="calc-btn calc-fn" onclick="calcClear()">C</button>
-                    <button class="calc-btn calc-fn" onclick="calcBackspace()">⌫</button>
-                    <button class="calc-btn calc-op" onclick="calcPress('%')">%</button>
-                    <button class="calc-btn calc-op" onclick="calcPress('/')">÷</button>
-
-                    <button class="calc-btn" onclick="calcPress('7')">7</button>
-                    <button class="calc-btn" onclick="calcPress('8')">8</button>
-                    <button class="calc-btn" onclick="calcPress('9')">9</button>
-                    <button class="calc-btn calc-op" onclick="calcPress('*')">×</button>
-
-                    <button class="calc-btn" onclick="calcPress('4')">4</button>
-                    <button class="calc-btn" onclick="calcPress('5')">5</button>
-                    <button class="calc-btn" onclick="calcPress('6')">6</button>
-                    <button class="calc-btn calc-op" onclick="calcPress('-')">−</button>
-
-                    <button class="calc-btn" onclick="calcPress('1')">1</button>
-                    <button class="calc-btn" onclick="calcPress('2')">2</button>
-                    <button class="calc-btn" onclick="calcPress('3')">3</button>
-                    <button class="calc-btn calc-op" onclick="calcPress('+')">+</button>
-
-                    <button class="calc-btn" onclick="calcPress('0')" style="grid-column: span 2;">0</button>
-                    <button class="calc-btn" onclick="calcPress('.')">.</button>
-                    <button class="calc-btn calc-eq" onclick="calcEquals()">=</button>
-                </div>
-            </div>
-        `;
+        result.innerHTML =
+            "<div style=\"text-align:left;\">" +
+            "<b>🧮 Pro Calculator</b>" +
+            "<p style=\"font-size:13px; color:#666; margin:10px 0 4px;\">Product ka naam likhen (jaise: Atta 2 kg):</p>" +
+            "<input type=\"text\" id=\"calcSearchBox\" placeholder=\"jaise: Atta 1 kg\" autocomplete=\"off\" oninput=\"calcLookupPreview()\">" +
+            "<div id=\"calcLookupResult\" style=\"font-size:14px; margin-top:8px;\"></div>" +
+            "<div style=\"background:#1e293b; border-radius:12px; padding:16px; margin-top:18px;\">" +
+            "<div id=\"calcDisplay\" style=\"color:white; font-size:30px; text-align:right; min-height:42px; word-wrap:break-word;\">0</div>" +
+            "</div>" +
+            "<div class=\"calc-grid\">" +
+            "<button class=\"calc-btn calc-fn\" onclick=\"calcClear()\">C</button>" +
+            "<button class=\"calc-btn calc-fn\" onclick=\"calcBackspace()\">⌫</button>" +
+            "<button class=\"calc-btn calc-op\" onclick=\"calcPress('%')\">%</button>" +
+            "<button class=\"calc-btn calc-op\" onclick=\"calcPress('/')\">÷</button>" +
+            "<button class=\"calc-btn\" onclick=\"calcPress('7')\">7</button>" +
+            "<button class=\"calc-btn\" onclick=\"calcPress('8')\">8</button>" +
+            "<button class=\"calc-btn\" onclick=\"calcPress('9')\">9</button>" +
+            "<button class=\"calc-btn calc-op\" onclick=\"calcPress('*')\">×</button>" +
+            "<button class=\"calc-btn\" onclick=\"calcPress('4')\">4</button>" +
+            "<button class=\"calc-btn\" onclick=\"calcPress('5')\">5</button>" +
+            "<button class=\"calc-btn\" onclick=\"calcPress('6')\">6</button>" +
+            "<button class=\"calc-btn calc-op\" onclick=\"calcPress('-')\">−</button>" +
+            "<button class=\"calc-btn\" onclick=\"calcPress('1')\">1</button>" +
+            "<button class=\"calc-btn\" onclick=\"calcPress('2')\">2</button>" +
+            "<button class=\"calc-btn\" onclick=\"calcPress('3')\">3</button>" +
+            "<button class=\"calc-btn calc-op\" onclick=\"calcPress('+')\">+</button>" +
+            "<button class=\"calc-btn\" onclick=\"calcPress('0')\" style=\"grid-column: span 2;\">0</button>" +
+            "<button class=\"calc-btn\" onclick=\"calcPress('.')\">.</button>" +
+            "<button class=\"calc-btn calc-eq\" onclick=\"calcEquals()\">=</button>" +
+            "</div></div>";
         loadCalculatorProducts();
     }
 }
@@ -892,11 +843,10 @@ function addProductRow() {
     const rows = document.getElementById("productRows");
     const row = document.createElement("div");
     row.className = "product-row";
-    row.innerHTML = `
-        <input type="text" placeholder="Product naam" class="prodName">
-        <input type="text" placeholder="Price" class="prodPrice">
-        <button class="remove-row" onclick="this.parentElement.remove()">✕</button>
-    `;
+    row.innerHTML =
+        "<input type=\"text\" placeholder=\"Product naam\" class=\"prodName\">" +
+        "<input type=\"text\" placeholder=\"Price\" class=\"prodPrice\">" +
+        "<button class=\"remove-row\" onclick=\"this.parentElement.remove()\">✕</button>";
     rows.appendChild(row);
 }
 
@@ -1013,12 +963,12 @@ function renderRecentProducts() {
     const list = document.getElementById("recentProductsList");
     const toShow = allSubmissionsForDash.slice(0, recentShown);
     list.innerHTML = toShow.length
-        ? toShow.map(s => `
-            <div class="dash-recent-item">
-                ${escapeHtml(s.productName || "—")} — Rs ${escapeHtml(String(s.price || "—"))}
-                <span style="color:#888;">(${escapeHtml(String(s.status || "pending"))})</span>
-            </div>
-        `).join("")
+        ? toShow.map(s =>
+            "<div class=\"dash-recent-item\">" +
+            escapeHtml(s.productName || "—") + " — Rs " + escapeHtml(String(s.price || "—")) +
+            " <span style=\"color:#888;\">(" + escapeHtml(String(s.status || "pending")) + ")</span>" +
+            "</div>"
+          ).join("")
         : '<div class="dash-recent-item" style="color:#888;">Koi product nahi mila.</div>';
 
     document.getElementById("loadMoreBtn").style.display =
@@ -1087,18 +1037,17 @@ async function submitShopData() {
         const batch = db.batch();
         products.forEach(p => {
             const ref = db.collection("PendingSubmissions").doc();
-            batch.set(ref, {
+            batch.set(ref, Object.assign({
                 shopName: shopName,
                 ownerName: ownerName,
                 phoneNumber: phoneNumber,
                 shopAddress: shopAddress,
-                ...locationData,
                 photoURL: photoURL,
                 productName: p.name,
                 price: p.price,
                 status: "pending",
                 submittedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            }, locationData));
         });
         await batch.commit();
 
@@ -1113,12 +1062,11 @@ async function submitShopData() {
         document.getElementById("shopAddress").value = "";
         document.getElementById("manualLocationInput").value = "";
         document.getElementById("shopPhoto").value = "";
-        document.getElementById("productRows").innerHTML = `
-            <div class="product-row">
-                <input type="text" placeholder="Product naam" class="prodName">
-                <input type="text" placeholder="Price" class="prodPrice">
-            </div>
-        `;
+        document.getElementById("productRows").innerHTML =
+            "<div class=\"product-row\">" +
+            "<input type=\"text\" placeholder=\"Product naam\" class=\"prodName\">" +
+            "<input type=\"text\" placeholder=\"Price\" class=\"prodPrice\">" +
+            "</div>";
 
         loadDashboard();
     } catch (err) {
@@ -1184,7 +1132,7 @@ function loadProducts() {
     document.getElementById("productList").innerHTML = "⏳ Loading...";
     db.collection(COLLECTION_NAME).get().then((snapshot) => {
         allProducts = [];
-        snapshot.forEach((doc) => { allProducts.push({ id: doc.id, ...doc.data() }); });
+        snapshot.forEach((doc) => { allProducts.push(Object.assign({ id: doc.id }, doc.data())); });
         const statTotal = document.getElementById("statTotal");
         if (statTotal) statTotal.textContent = allProducts.length;
         renderList();
@@ -1200,23 +1148,20 @@ function renderList() {
         const name = String(p.name || "").toLowerCase();
         return name.includes(search);
     });
-    document.getElementById("countBadge").textContent = `${filtered.length} / ${allProducts.length} products dikh rahe hain`;
+    document.getElementById("countBadge").textContent = filtered.length + " / " + allProducts.length + " products dikh rahe hain";
     if (filtered.length === 0) {
         listEl.innerHTML = "<p style='color:#888;'>Koi product nahi mila.</p>";
         return;
     }
-    listEl.innerHTML = filtered.map(p => `
-        <div class="product-row" id="row-${p.id}">
-            <div class="product-info">
-                <b>${escapeHtml(p.name || "—")}</b><br>
-                Rs ${escapeHtml(String(p.price ?? "—"))} · ${escapeHtml(p.shop || "—")}
-            </div>
-            <div class="row-actions">
-                <button class="small secondary" onclick="startEdit('${p.id}')">Edit</button>
-                <button class="small danger" onclick="deleteProduct('${p.id}')">Delete</button>
-            </div>
-        </div>
-    `).join("");
+    listEl.innerHTML = filtered.map(p =>
+        "<div class=\"product-row\" id=\"row-" + p.id + "\">" +
+        "<div class=\"product-info\"><b>" + escapeHtml(p.name || "—") + "</b><br>" +
+        "Rs " + escapeHtml(String(p.price != null ? p.price : "—")) + " · " + escapeHtml(p.shop || "—") + "</div>" +
+        "<div class=\"row-actions\">" +
+        "<button class=\"small secondary\" onclick=\"startEdit('" + p.id + "')\">Edit</button>" +
+        "<button class=\"small danger\" onclick=\"deleteProduct('" + p.id + "')\">Delete</button>" +
+        "</div></div>"
+    ).join("");
 }
 
 function addProduct() {
@@ -1283,9 +1228,9 @@ function bulkUpload() {
                     });
                     await batch.commit();
                     uploaded += chunk.length;
-                    msg.textContent = `⏳ ${uploaded} / ${validRows.length} upload ho rahe hain...`;
+                    msg.textContent = "⏳ " + uploaded + " / " + validRows.length + " upload ho rahe hain...";
                 }
-                msg.textContent = `✅ ${uploaded} products upload ho gaye!`;
+                msg.textContent = "✅ " + uploaded + " products upload ho gaye!";
                 msg.style.color = "#16a34a";
                 fileInput.value = "";
                 loadProducts();
@@ -1347,7 +1292,7 @@ function processPbsExcel() {
                 }
             });
 
-            pbsLog(`📊 Excel سے کل ${Object.keys(extractedPrices).length} پروڈکٹس ملے۔`);
+            pbsLog("📊 Excel سے کل " + Object.keys(extractedPrices).length + " پروڈکٹس ملے۔");
 
             msg.textContent = "⏳ فائر بیس ڈیٹا بیس اپ ڈیٹ ہو رہا ہے...";
             const snapshot = await db.collection(COLLECTION_NAME).get();
@@ -1373,11 +1318,11 @@ function processPbsExcel() {
                         price: String(extractedPrices[matchKey])
                     });
                     updatedCount++;
-                    pbsLog(`✅ ${name} → Rs ${extractedPrices[matchKey]}`);
+                    pbsLog("✅ " + name + " → Rs " + extractedPrices[matchKey]);
                 }
             }
 
-            msg.innerHTML = `✅ کام مکمل! ${updatedCount} پروڈکٹس اپ ڈیٹ ہوئے اور ${skippedCount} اسکپ ہوئے (جو لسٹ میں نہیں تھے)۔`;
+            msg.innerHTML = "✅ کام مکمل! " + updatedCount + " پروڈکٹس اپ ڈیٹ ہوئے اور " + skippedCount + " اسکپ ہوئے (جو لسٹ میں نہیں تھے)۔";
             msg.style.color = "#16a34a";
             fileInput.value = "";
             loadProducts();
@@ -1393,24 +1338,22 @@ function processPbsExcel() {
 function startEdit(id) {
     const p = allProducts.find(x => x.id === id);
     if (!p) return;
-    const row = document.getElementById(`row-${id}`);
-    row.innerHTML = `
-        <div class="edit-box" style="width:100%;">
-            <input type="text" id="editName-${id}" value="${escapeHtml(p.name || '')}">
-            <input type="text" id="editPrice-${id}" value="${escapeHtml(String(p.price ?? ''))}">
-            <input type="text" id="editShop-${id}" value="${escapeHtml(p.shop || '')}">
-            <div class="row-actions">
-                <button class="small" onclick="saveEdit('${id}')">Save</button>
-                <button class="small secondary" onclick="renderList()">Cancel</button>
-            </div>
-        </div>
-    `;
+    const row = document.getElementById("row-" + id);
+    row.innerHTML =
+        "<div class=\"edit-box\" style=\"width:100%;\">" +
+        "<input type=\"text\" id=\"editName-" + id + "\" value=\"" + escapeHtml(p.name || '') + "\">" +
+        "<input type=\"text\" id=\"editPrice-" + id + "\" value=\"" + escapeHtml(String(p.price != null ? p.price : '')) + "\">" +
+        "<input type=\"text\" id=\"editShop-" + id + "\" value=\"" + escapeHtml(p.shop || '') + "\">" +
+        "<div class=\"row-actions\">" +
+        "<button class=\"small\" onclick=\"saveEdit('" + id + "')\">Save</button>" +
+        "<button class=\"small secondary\" onclick=\"renderList()\">Cancel</button>" +
+        "</div></div>";
 }
 
 function saveEdit(id) {
-    const name = document.getElementById(`editName-${id}`).value.trim();
-    const price = document.getElementById(`editPrice-${id}`).value.trim();
-    const shop = document.getElementById(`editShop-${id}`).value.trim();
+    const name = document.getElementById("editName-" + id).value.trim();
+    const price = document.getElementById("editPrice-" + id).value.trim();
+    const shop = document.getElementById("editShop-" + id).value.trim();
     if (!name || !price || !shop) { alert("Sab fields bharen."); return; }
     db.collection(COLLECTION_NAME).doc(id).update({ name, price, shop })
         .then(() => loadProducts())
