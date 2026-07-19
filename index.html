@@ -690,10 +690,23 @@ async function startSearch() {
 
         if (json.success && json.data && json.data.length > 0) {
             const item = json.data[0];
+
+            let trendHtml = "";
+            if (item.priceChange && item.priceChange.changed) {
+                const pc = item.priceChange;
+                const isUp = pc.direction === "up";
+                const arrow = isUp ? "▲" : "▼";
+                const color = isUp ? "#dc2626" : "#16a34a";
+                const pctAbs = Math.abs(pc.percentChange);
+                trendHtml =
+                    "<br>" + arrow + " <b style=\"color:" + color + ";\">" +
+                    pctAbs + "% " + (isUp ? "زیادہ" : "کم") + " (پچھلی قیمت سے)</b>";
+            }
+
             result.innerHTML =
                 "<div style=\"text-align: right; direction: rtl;\">" +
                 "🛍️ <b>پروڈکٹ:</b> " + escapeHtml(item.name || input) + "<br>" +
-                "💰 <b>قیمت:</b> Rs " + escapeHtml(String(item.price)) + "<br>" +
+                "💰 <b>قیمت:</b> Rs " + escapeHtml(String(item.price)) + trendHtml + "<br>" +
                 "🏪 <b>دکان/مارکیٹ:</b> " + escapeHtml(item.shop || "—") + " " + (item.verified ? "✅" : "") +
                 "</div>";
         } else {
