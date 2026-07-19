@@ -351,6 +351,11 @@ body { margin: 0; font-family: Arial, sans-serif; }
         <div class="card" id="result">
             نتائج یہاں نظر آئیں گے
         </div>
+
+        <div class="card" id="trendingCard" style="display:none;">
+            <div style="font-size:16px; font-weight:bold; margin-bottom:8px;">🔥 آج کل زیادہ تلاش ہو رہا ہے</div>
+            <div id="trendingList" style="font-size:14px; text-align:right; direction:rtl;"></div>
+        </div>
     </div>
 
     <div class="bottom-nav">
@@ -646,6 +651,25 @@ function toggleDarkMode() {
     btn.textContent = homePage.classList.contains('dark-mode') ? '☀️' : '🌙';
 }
 
+async function loadTrending() {
+    const trendingCard = document.getElementById("trendingCard");
+    const trendingList = document.getElementById("trendingList");
+    if (!trendingCard || !trendingList) return;
+    try {
+        const response = await fetch("/api/trending");
+        const json = await response.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            trendingList.innerHTML = json.data.slice(0, 5).map((t, i) =>
+                (i + 1) + ". " + escapeHtml(t.product) + " <span style=\"color:#888;\">(" + t.searchCount + " بار)</span>"
+            ).join("<br>");
+            trendingCard.style.display = "block";
+            trendingCard.dataset.hasData = "true";
+        }
+    } catch (err) {
+        console.error("Trending load error:", err);
+    }
+}
+
 async function loadCityOptions() {
     const citySelect = document.getElementById("citySelect");
     if (!citySelect) return;
@@ -823,6 +847,10 @@ function calcEquals() {
 
 function showPage(page) {
     const result = document.getElementById("result");
+    const trendingCard = document.getElementById("trendingCard");
+    if (trendingCard) {
+        trendingCard.style.display = (page === "calculator" || page === "profile") ? "none" : trendingCard.dataset.hasData ? "block" : "none";
+    }
 
     if (page === "home") {
         result.innerHTML = "📌<br><b>Welcome to Punjab Price App</b><br>صوبہ پنجاب کے سرکاری نرخ جاننے کے لیے سرچ کا استعمال کریں۔";
@@ -879,6 +907,7 @@ document.getElementById("inputBox").addEventListener("keypress", function(event)
 });
 
 loadCityOptions();
+loadTrending();
 </script>
 
 <script>
