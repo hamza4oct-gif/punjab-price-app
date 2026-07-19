@@ -343,6 +343,9 @@ body { margin: 0; font-family: Arial, sans-serif; }
     <div class="container">
         <h2>Search Product Price</h2>
         <input type="text" id="inputBox" placeholder="یہاں لکھیں، مثلاً sugar, flour" dir="auto">
+        <select id="citySelect">
+            <option value="">🌍 Sara Punjab (Default)</option>
+        </select>
         <button onclick="startSearch()">Search</button>
 
         <div class="card" id="result">
@@ -643,11 +646,32 @@ function toggleDarkMode() {
     btn.textContent = homePage.classList.contains('dark-mode') ? '☀️' : '🌙';
 }
 
+async function loadCityOptions() {
+    const citySelect = document.getElementById("citySelect");
+    if (!citySelect) return;
+    try {
+        const response = await fetch("/api/cities");
+        const json = await response.json();
+        if (json.success && Array.isArray(json.data)) {
+            json.data.forEach((city) => {
+                const opt = document.createElement("option");
+                opt.value = city.key;
+                opt.textContent = "📍 " + city.label;
+                citySelect.appendChild(opt);
+            });
+        }
+    } catch (err) {
+        console.error("City list load error:", err);
+    }
+}
+
 async function startSearch() {
     const inputBox = document.getElementById("inputBox");
+    const citySelect = document.getElementById("citySelect");
     const result = document.getElementById("result");
 
     let input = inputBox.value.trim();
+    let selectedCity = citySelect ? citySelect.value : "";
 
     if (input === "") {
         result.innerHTML = "<span style='color: #dc2626;'>❌ براہ کرم کچھ لکھیں</span>";
@@ -657,7 +681,11 @@ async function startSearch() {
     result.innerHTML = "<span style='color: #1e40af;'>⏳ تلاش جاری ہے... براہ کرم انتظار کریں</span>";
 
     try {
-        const response = await fetch("/api/search?q=" + encodeURIComponent(input));
+        let url = "/api/search?q=" + encodeURIComponent(input);
+        if (selectedCity) {
+            url += "&city=" + encodeURIComponent(selectedCity);
+        }
+        const response = await fetch(url);
         const json = await response.json();
 
         if (json.success && json.data && json.data.length > 0) {
@@ -836,6 +864,8 @@ document.getElementById("inputBox").addEventListener("keypress", function(event)
         startSearch();
     }
 });
+
+loadCityOptions();
 </script>
 
 <script>
