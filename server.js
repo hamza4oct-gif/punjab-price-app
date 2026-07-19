@@ -241,31 +241,11 @@ const CITY_COMMODITY_KEYWORDS = {
 // ============ TRUSTED INTERNET SOURCES (REAL, VERIFIED SOURCES) ============
 const TRUSTED_SOURCES = [
     {
-        // Listed FIRST on purpose: naheed-pk gives an actual RETAIL shop price
-        // (what a customer pays), which is what people expect from this app.
-        // amis-punjab (below) is WHOLESALE MANDI pricing — useful as a broader
-        // fallback for items with no retail source, but not what should win when
-        // both are available for the same item.
-        name: 'naheed-pk',
-        buildUrl: (canonicalKey) => {
-            const product = NAHEED_PRODUCT_MAP[canonicalKey];
-            if (!product) return null; // is source par yeh product curated nahi hai
-            return product.url;
-        },
-        parse: ($, canonicalKey) => {
-            const priceContent = $('meta[property="product:price:amount"]').attr('content');
-            if (!priceContent) return null;
-
-            const totalPackPrice = parseFloat(priceContent);
-            if (isNaN(totalPackPrice) || totalPackPrice <= 0) return null;
-
-            const product = NAHEED_PRODUCT_MAP[canonicalKey];
-            const packKg = (product && product.packKg) ? product.packKg : 1;
-
-            return Math.round((totalPackPrice / packKg) * 100) / 100;
-        }
-    },
-    {
+        // Listed FIRST on purpose: amis-punjab is the WHOLESALE MANDI price —
+        // this is what a shopkeeper themselves pays before adding their own
+        // margin, so it tends to land closer to real street/shop prices than a
+        // specific branded retail SKU (Naheed, below) does. Naheed remains a
+        // useful fallback for items AMIS doesn't track at all.
         name: 'amis-punjab',
         buildUrl: (canonicalKey) => {
             const commodityId = AMIS_COMMODITY_MAP[canonicalKey];
@@ -312,6 +292,29 @@ const TRUSTED_SOURCES = [
             }
 
             return foundPrice;
+        }
+    },
+    {
+        // Kept as a fallback: gives an actual RETAIL branded-pack price for the
+        // small set of items curated in NAHEED_PRODUCT_MAP, used when AMIS has
+        // no data for an item (or fails) rather than as the default choice.
+        name: 'naheed-pk',
+        buildUrl: (canonicalKey) => {
+            const product = NAHEED_PRODUCT_MAP[canonicalKey];
+            if (!product) return null; // is source par yeh product curated nahi hai
+            return product.url;
+        },
+        parse: ($, canonicalKey) => {
+            const priceContent = $('meta[property="product:price:amount"]').attr('content');
+            if (!priceContent) return null;
+
+            const totalPackPrice = parseFloat(priceContent);
+            if (isNaN(totalPackPrice) || totalPackPrice <= 0) return null;
+
+            const product = NAHEED_PRODUCT_MAP[canonicalKey];
+            const packKg = (product && product.packKg) ? product.packKg : 1;
+
+            return Math.round((totalPackPrice / packKg) * 100) / 100;
         }
     }
 ];
