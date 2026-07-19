@@ -1116,15 +1116,15 @@ function doGoogleLogin() {
     msg.textContent = "⏳ Google se login ho raha hai...";
     msg.style.color = "#1e40af";
     const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithRedirect(provider);
+    auth.signInWithPopup(provider)
+        .then((result) => {
+            msg.textContent = "";
+        })
+        .catch((err) => {
+            msg.textContent = "❌ " + err.message;
+            msg.style.color = "#dc2626";
+        });
 }
-
-auth.getRedirectResult().then((result) => {
-    if (result.user) { console.log("Google login UID:", result.user.uid); }
-}).catch((err) => {
-    const msg = document.getElementById("loginMsg");
-    if (msg) { msg.textContent = "❌ " + err.message; msg.style.color = "#dc2626"; }
-});
 
 function doLogout() { auth.signOut(); }
 
@@ -1430,34 +1430,27 @@ function loginWithGoogle() {
     msg.style.color = 'blue';
     msg.innerHTML = 'Google se login ho raha hai...';
     var provider = new firebase.auth.GoogleAuthProvider();
-    firebase.auth().signInWithRedirect(provider);
+    firebase.auth().signInWithPopup(provider)
+        .then(function (result) {
+            if (result && result.user) {
+                msg.style.color = 'green';
+                msg.innerHTML = 'Login Successful! Redirecting...';
+                setTimeout(function () {
+                    spaShowPage('home');
+                }, 1200);
+            }
+        })
+        .catch(function (error) {
+            msg.style.color = 'red';
+            msg.innerHTML = 'Error: ' + error.message;
+        });
 }
-
-firebase.auth().getRedirectResult().then(function (result) {
-    if (result && result.user) {
-        var msg = document.getElementById('loginPageMsg');
-        if (msg) {
-            msg.style.color = 'green';
-            msg.innerHTML = 'Login Successful! Redirecting...';
-        }
-        if (isPageActive('login')) {
-            setTimeout(function () {
-                spaShowPage('home');
-            }, 1200);
-        }
-    }
-}).catch(function (error) {
-    var msg = document.getElementById('loginPageMsg');
-    if (msg && error) {
-        msg.style.color = 'red';
-        msg.innerHTML = 'Error: ' + error.message;
-    }
-});
 
 function login() {
   let email = document.getElementById("email").value.trim();
   let password = document.getElementById("password").value;
   let msg = document.getElementById("loginPageMsg");
+  msg.innerHTML = "";
 
   if (email === "" || password === "") {
     msg.style.color = "red";
