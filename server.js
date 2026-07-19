@@ -31,8 +31,8 @@ process.on('unhandledRejection', (reason) => {
 // ============ LEVEL: CONFIG SUPPORT (centralized configurable values) ============
 const CONFIG = {
     PORT: process.env.PORT || 5000,
-    CACHE_TTL_MS: 60 * 60 * 1000,                    // 1 hour
-    CACHE_REFRESH_THRESHOLD_MS: 10 * 60 * 1000,       // refresh in background if <10 min left
+    CACHE_TTL_MS: 5 * 60 * 1000,                      // 5 minutes — prices refresh fast
+    CACHE_REFRESH_THRESHOLD_MS: 60 * 1000,             // refresh in background if <1 min left
     AUTO_SYNC_INTERVAL_MS: 3 * 60 * 60 * 1000,        // Auto Sync every 3 hours
     BACKGROUND_REFRESH_INTERVAL_MS: 30 * 60 * 1000,   // 30 min
     CACHE_CLEANUP_INTERVAL_MS: 15 * 60 * 1000,        // 15 min
@@ -160,7 +160,21 @@ const AMIS_COMMODITY_MAP = {
     podina: 115,        // Mint
     methi: 105,         // Fenugreek
     til: 118,           // Sesame
-    ganna: 125          // Sugarcane
+    ganna: 125,         // Sugarcane
+    // ---- More verified AMIS items ----
+    bathua: 130,        // Batho (leafy green)
+    shakar: 127,        // Brown Sugar (شکر)
+    kaala_chana: 9,     // Gram Black
+    chakotra: 61,       // Grapefruit (100Pcs)
+    cholia: 126,        // green chickpeas (چھولیا)
+    moongphali: 63,     // Groundnut
+    saag: 108,          // Mustard Greens (ساگ سرسوں)
+    santra: 44,         // Orange (100Pcs)
+    basmati: 3,         // Rice Basmati Super (New)
+    persimmon: 110,     // Persimmon (جاپانی پھل)
+    chuqandar: 136,     // Suger Beet (چقندر)
+    shakarqandi: 111,   // Sweet Potato (شکر قندی)
+    tinda: 32           // Tinda Desi
     // NOTE: Pineapple (ananas) and Cherry are NOT tracked by AMIS Punjab at all —
     // no commodity ID exists for them on the source site, so they are intentionally
     // left out of this map. Searching them will correctly return "Product Not Found"
@@ -401,6 +415,19 @@ const ALIAS_MAP = {
     cherry: ['cherry', 'چیری'],
     narial: ['narial', 'nariyal', 'coconut', 'ناریل'],
     nashpati: ['nashpati', 'pear', 'ناشپاتی'],
+    bathua: ['bathua', 'bathu', 'باتھو'],
+    shakar: ['shakar', 'brown sugar', 'شکر'],
+    kaala_chana: ['kaala chana', 'kala chana', 'black gram', 'کالا چنا'],
+    chakotra: ['chakotra', 'grapefruit', 'چکوترا'],
+    cholia: ['cholia', 'cholay', 'green chickpeas', 'چھولیا'],
+    moongphali: ['moongphali', 'moong phali', 'peanuts', 'groundnut', 'مونگ پھلی'],
+    saag: ['saag', 'sarson saag', 'sarson ka saag', 'mustard greens', 'ساگ'],
+    santra: ['santra', 'orange', 'سنگترہ'],
+    basmati: ['basmati', 'basmati rice', 'باسمتی'],
+    persimmon: ['persimmon', 'japani phal', 'جاپانی پھل'],
+    chuqandar: ['chuqandar', 'beetroot', 'چقندر'],
+    shakarqandi: ['shakarqandi', 'sweet potato', 'شکر قندی'],
+    tinda: ['tinda', 'ٹینڈا'],
     // ---- Vegetables ----
     aloo: ['aloo', 'alu', 'potato', 'آلو'],
     tamatar: ['tamatar', 'tamater', 'tomato', 'ٹماٹر'],
