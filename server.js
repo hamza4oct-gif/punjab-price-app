@@ -80,12 +80,15 @@ try {
 
 // ============ AMIS PUNJAB COMMODITY ID MAP (REAL, VERIFIED) ============
 const AMIS_COMMODITY_MAP = {
-    // NOTE: "atta" was previously mapped to AMIS's "Wheat" commodity (id 1).
-    // That is WRONG — AMIS's Wheat price is the WHOLESALE MANDI price of raw,
-    // unprocessed wheat grain, quoted per 40kg (maund), sold farmer-to-trader.
-    // It is a completely different product from retail "Atta" (milled, packaged
-    // flour) sold in shops, which is why the app's price didn't match real shop
-    // prices. Atta now comes ONLY from Naheed (a real retail flour price) below.
+    // UPDATE: "atta" is mapped to AMIS's "Wheat" commodity (id 1) again.
+    // Earlier this was removed because Wheat is technically raw grain, not
+    // milled flour, AND because at the time AMIS prices weren't being
+    // converted from Rs/100kg to Rs/kg (see the /100 fix below), so the
+    // numbers looked wrong for a different reason. Now that the unit
+    // conversion is correct, this wholesale grain price tracks much closer
+    // to real shop atta prices than Naheed's branded 10kg retail pack did
+    // (same pattern we confirmed works well for chini/sugar).
+    atta: 1,      // Wheat
     chini: 7,     // Sugar
     mirch: 29,    // Red Chilli Whole (Dry)
     haldi: 123,   // Turmeric Whole (ثابت ہلدی)
@@ -162,11 +165,6 @@ const AMIS_COMMODITY_MAP = {
     // no commodity ID exists for them on the source site, so they are intentionally
     // left out of this map. Searching them will correctly return "Product Not Found"
     // instead of a wrong price.
-};
-
-const NAHEED_PRODUCT_MAP = {
-    chini: { url: 'https://www.naheed.pk/naheed-sugar-fine-1-kg', packKg: 1 },
-    atta: { url: 'https://www.naheed.pk/bake-parlour-super-fine-atta-10-kg', packKg: 10 }
 };
 
 // ============ CITY / MANDI MARKET IDS (verified from amis.pk district-cities list) ============
@@ -292,29 +290,6 @@ const TRUSTED_SOURCES = [
             }
 
             return foundPrice;
-        }
-    },
-    {
-        // Kept as a fallback: gives an actual RETAIL branded-pack price for the
-        // small set of items curated in NAHEED_PRODUCT_MAP, used when AMIS has
-        // no data for an item (or fails) rather than as the default choice.
-        name: 'naheed-pk',
-        buildUrl: (canonicalKey) => {
-            const product = NAHEED_PRODUCT_MAP[canonicalKey];
-            if (!product) return null; // is source par yeh product curated nahi hai
-            return product.url;
-        },
-        parse: ($, canonicalKey) => {
-            const priceContent = $('meta[property="product:price:amount"]').attr('content');
-            if (!priceContent) return null;
-
-            const totalPackPrice = parseFloat(priceContent);
-            if (isNaN(totalPackPrice) || totalPackPrice <= 0) return null;
-
-            const product = NAHEED_PRODUCT_MAP[canonicalKey];
-            const packKg = (product && product.packKg) ? product.packKg : 1;
-
-            return Math.round((totalPackPrice / packKg) * 100) / 100;
         }
     }
 ];
