@@ -59,24 +59,49 @@ const CONFIG = {
 // ============ FIRESTORE (OPTIONAL) ============
 // Firestore sirf tab active hoga jab service account credentials mojood hon.
 // Agar credentials na hon to app crash nahi karega, sirf Firestore skip ho jayega.
+//
+// Two ways to provide credentials (checked in this order):
+//   1. Environment variable FIREBASE_SERVICE_ACCOUNT_JSON — the ENTIRE contents
+//      of the Firebase service account JSON file, pasted as one line. This is
+//      the recommended way on Render: Dashboard → your service → Environment →
+//      Add Environment Variable. NEVER commit the actual JSON file to GitHub —
+//      a public repo with real credentials in it is a serious security risk.
+//   2. A local firebase-service-account.json file next to server.js (fallback,
+//      only safe for local/private testing, not for a public GitHub repo).
 let firestoreDB = null;
 try {
     const admin = require('firebase-admin');
-    const SERVICE_ACCOUNT_PATH = path.join(__dirname, 'firebase-service-account.json');
-    if (fs.existsSync(SERVICE_ACCOUNT_PATH)) {
-        const serviceAccount = require(SERVICE_ACCOUNT_PATH);
+    let serviceAccount = null;
+
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    } else {
+        const SERVICE_ACCOUNT_PATH = path.join(__dirname, 'firebase-service-account.json');
+        if (fs.existsSync(SERVICE_ACCOUNT_PATH)) {
+            serviceAccount = require(SERVICE_ACCOUNT_PATH);
+        }
+    }
+
+    if (serviceAccount) {
         if (!admin.apps.length) {
             admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
         }
         firestoreDB = admin.firestore();
         console.log('✅ Firestore connected');
     } else {
-        console.log('⚠️  Firestore service account not found, running in JSON-only mode');
+        console.log('⚠️  Firestore credentials not found, running in JSON-only mode');
     }
 } catch (e) {
     console.log('⚠️  Firestore module unavailable, running in JSON-only mode:', e.message);
     firestoreDB = null;
 }
+
+// The Admin Panel (index.html) reads/writes a collection literally named
+// "Document" (capital D) — this constant keeps server.js pointed at the exact
+// same collection so admin-added products, CSV bulk uploads, and PBS Excel
+// uploads actually show up in search results instead of living in an
+// unrelated, never-checked "products" collection.
+const FIRESTORE_ADMIN_COLLECTION = 'Document';
 
 // ============ AMIS PUNJAB COMMODITY ID MAP (REAL, VERIFIED) ============
 const AMIS_COMMODITY_MAP = {
@@ -1011,15 +1036,41 @@ function searchInLocalDB(searchKey, canonicalKey) {
 async function searchInFirestore(searchKey, canonicalKey) {
     if (!firestoreDB) return null;
     try {
-        const snapshot = await firestoreDB.collection('products')
-            .where('searchname', '==', canonicalKey || searchKey)
-            .limit(1)
-            .get();
-
+        // The Admin Panel stores documents as { name, price, shop, createdAt } —
+        // no "searchname" field — so we can't do a simple .where() equality
+        // query. Collection size for a regional price app should stay small
+        // enough that fetching + filtering client-side (same approach the
+        // Admin Panel's own UI already uses) is fine.
+        const snapshot = await firestoreDB.collection(FIRESTORE_ADMIN_COLLECTION).get();
         if (snapshot.empty) return null;
 
-        const doc = snapshot.docs[0];
-        return { id: doc.id, ...doc.data() };
+        let bestMatch = null;
+        snapshot.forEach((doc) => {
+            if (bestMatch) return;
+            const data = doc.data();
+            const name = String(data.name || '').toLowerCase().trim();
+            if (!name) return;
+
+            const isMatch =
+                name === searchKey ||
+                (canonicalKey && name === canonicalKey) ||
+                name.includes(searchKey) ||
+                searchKey.includes(name) ||
+                (canonicalKey && (name.includes(canonicalKey) || canonicalKey.includes(name)));
+
+            if (isMatch) {
+                bestMatch = {
+                    id: doc.id,
+                    name: data.name,
+                    searchname: canonicalKey || searchKey,
+                    price: data.price,
+                    shop: data.shop || 'Admin Panel',
+                    verified: true
+                };
+            }
+        });
+
+        return bestMatch;
     } catch (e) {
         console.error('⚠️ Firestore search error:', e.message);
         return null;
@@ -1464,6 +1515,17 @@ function handleRequest(req, res) {
         }));
         res.writeHead(200);
         res.end(JSON.stringify({ success: true, data: cities }));
+        return;
+    }
+
+    // ============ ALL KNOWN ITEMS (for search-box autocomplete/suggestions) ============
+    if (pathname === '/api/all-items' && req.method === 'GET') {
+        const items = Object.keys(ALIAS_MAP).map(key => {
+            const label = key.replace(/_/g, ' ');
+            return label.charAt(0).toUpperCase() + label.slice(1);
+        }).sort();
+        res.writeHead(200);
+        res.end(JSON.stringify({ success: true, data: items }));
         return;
     }
 
