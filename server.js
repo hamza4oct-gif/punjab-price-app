@@ -1837,6 +1837,65 @@ function handleRequest(req, res) {
         return;
     }
 
+    // ============ COMPARE PRICE ACROSS MAJOR CITIES ============
+    if (pathname === '/api/compare-cities' && req.method === 'GET') {
+        const rawQuery = sanitizeInput(query.q || '').toLowerCase();
+        if (!rawQuery) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'q query param required' }));
+            return;
+        }
+        const canonicalKey = resolveCanonicalKey(rawQuery) || rawQuery;
+
+        if (!CITY_COMMODITY_KEYWORDS[canonicalKey]) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ success: false, message: 'Is item ke liye city-wise comparison available nahi hai' }));
+            return;
+        }
+
+        // A curated subset of major cities — querying all 30+ would be slow;
+        // this set gives good geographic spread across Punjab in a few seconds.
+        const COMPARE_CITIES = ['lahore', 'faisalabad', 'multan', 'rawalpindi', 'gujranwala', 'sialkot', 'bahawalpur', 'sargodha'];
+
+        (async () => {
+            const attempts = COMPARE_CITIES.map(async (cityKey) => {
+                const result = await withTimeout(fetchCityPrice(canonicalKey, cityKey), CONFIG.INTERNET_SOURCE_TIMEOUT_MS + 1500);
+                if (result) {
+                    return { city: cityKey.charAt(0).toUpperCase() + cityKey.slice(1), price: result.price };
+                }
+                return null;
+            });
+
+            const settled = await Promise.allSettled(attempts);
+            const cityPrices = settled
+                .filter(r => r.status === 'fulfilled' && r.value)
+                .map(r => r.value)
+                .sort((a, b) => a.price - b.price);
+
+            if (cityPrices.length === 0) {
+                res.writeHead(404);
+                res.end(JSON.stringify({ success: false, message: 'Kisi bhi shehar se price nahi mil saki, dobara koshish karein' }));
+                return;
+            }
+
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                success: true,
+                item: canonicalKey,
+                cheapest: cityPrices[0].city,
+                mostExpensive: cityPrices[cityPrices.length - 1].city,
+                data: cityPrices
+            }));
+        })().catch((e) => {
+            console.error('⚠️ compare-cities error:', e.message);
+            if (!res.headersSent) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ success: false, message: 'Internal error' }));
+            }
+        });
+        return;
+    }
+
     // ============ NEW: SOURCE HEALTH / STATISTICS ============
     if (pathname === '/api/sources' && req.method === 'GET') {
         res.writeHead(200);
