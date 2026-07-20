@@ -342,7 +342,8 @@ body { margin: 0; font-family: Arial, sans-serif; }
 
     <div class="container">
         <h2>Search Product Price</h2>
-        <input type="text" id="inputBox" placeholder="یہاں لکھیں، مثلاً sugar, flour" dir="auto">
+        <input type="text" id="inputBox" placeholder="یہاں لکھیں، مثلاً sugar, flour" dir="auto" list="itemSuggestions" autocomplete="off">
+        <datalist id="itemSuggestions"></datalist>
         <select id="citySelect">
             <option value="">🌍 Sara Punjab (Default)</option>
         </select>
@@ -651,6 +652,22 @@ function toggleDarkMode() {
     btn.textContent = homePage.classList.contains('dark-mode') ? '☀️' : '🌙';
 }
 
+async function loadItemSuggestions() {
+    const datalist = document.getElementById("itemSuggestions");
+    if (!datalist) return;
+    try {
+        const response = await fetch("/api/all-items");
+        const json = await response.json();
+        if (json.success && Array.isArray(json.data)) {
+            datalist.innerHTML = json.data.map((name) =>
+                "<option value=\"" + escapeHtml(name) + "\"></option>"
+            ).join("");
+        }
+    } catch (err) {
+        console.error("Item suggestions load error:", err);
+    }
+}
+
 async function loadTrending() {
     const trendingCard = document.getElementById("trendingCard");
     const trendingList = document.getElementById("trendingList");
@@ -908,6 +925,7 @@ document.getElementById("inputBox").addEventListener("keypress", function(event)
 
 loadCityOptions();
 loadTrending();
+loadItemSuggestions();
 </script>
 
 <script>
