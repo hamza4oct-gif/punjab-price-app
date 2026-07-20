@@ -668,6 +668,32 @@ async function loadItemSuggestions() {
     }
 }
 
+async function compareCities(searchTerm) {
+    const box = document.getElementById("cityCompareBox");
+    if (!box) return;
+    box.innerHTML = "<span style='color:#1e40af;'>⏳ سب شہروں سے موازنہ ہو رہا ہے...</span>";
+    try {
+        const response = await fetch("/api/compare-cities?q=" + encodeURIComponent(searchTerm));
+        const json = await response.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            const rows = json.data.map((c) => {
+                const isCheapest = c.city === json.cheapest;
+                const isExpensive = c.city === json.mostExpensive && json.data.length > 1;
+                const badge = isCheapest ? " 🏆 سب سے سستا" : (isExpensive ? " 📌 سب سے مہنگا" : "");
+                const color = isCheapest ? "#16a34a" : (isExpensive ? "#dc2626" : "#333");
+                return "<div style=\"padding:6px 0; border-bottom:1px solid #eee; color:" + color + ";\">" +
+                    "<b>" + escapeHtml(c.city) + "</b>: Rs " + c.price + badge + "</div>";
+            }).join("");
+            box.innerHTML = rows;
+        } else {
+            box.innerHTML = "<span style='color:#d97706;'>" + escapeHtml(json.message || "Comparison نہیں ہو سکا") + "</span>";
+        }
+    } catch (err) {
+        console.error("City compare error:", err);
+        box.innerHTML = "<span style='color:#dc2626;'>❌ موازنہ ناکام رہا</span>";
+    }
+}
+
 async function loadAiPrediction(searchTerm) {
     const box = document.getElementById("aiPredictionBox");
     if (!box) return;
@@ -772,6 +798,8 @@ async function startSearch() {
                 "💰 <b>قیمت:</b> Rs " + escapeHtml(String(item.price)) + trendHtml + "<br>" +
                 "🏪 <b>دکان/مارکیٹ:</b> " + escapeHtml(item.shop || "—") + " " + (item.verified ? "✅" : "") +
                 "<div id=\"aiPredictionBox\" style=\"margin-top:10px; font-size:13px; color:#666;\"></div>" +
+                "<button type=\"button\" onclick=\"compareCities('" + escapeHtml(input.replace(/'/g, "")) + "')\" style=\"margin-top:12px; background:#0891b2;\">🏙️ Sab Shehron Mein Compare Karein</button>" +
+                "<div id=\"cityCompareBox\" style=\"margin-top:10px; font-size:14px; text-align:right; direction:rtl;\"></div>" +
                 "</div>";
 
             loadAiPrediction(input);
