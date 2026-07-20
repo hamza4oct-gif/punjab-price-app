@@ -668,6 +668,28 @@ async function loadItemSuggestions() {
     }
 }
 
+async function loadAiPrediction(searchTerm) {
+    const box = document.getElementById("aiPredictionBox");
+    if (!box) return;
+    try {
+        const response = await fetch("/api/predict?searchname=" + encodeURIComponent(searchTerm));
+        const json = await response.json();
+        if (json.success && json.data && json.data.available) {
+            const d = json.data;
+            const trendLabel = d.trend === "rising" ? "بڑھ رہی ہے 📈" :
+                                d.trend === "falling" ? "کم ہو رہی ہے 📉" : "مستحکم ہے ➖";
+            box.innerHTML =
+                "🤖 <b>AI پیشگوئی:</b> اگلی قیمت تقریباً Rs " + d.predictedPrice +
+                " ہو سکتی ہے<br>رجحان: " + trendLabel +
+                " · اعتماد: " + d.confidence + "%";
+        } else {
+            box.innerHTML = "";
+        }
+    } catch (err) {
+        console.error("AI prediction load error:", err);
+    }
+}
+
 async function loadTrending() {
     const trendingCard = document.getElementById("trendingCard");
     const trendingList = document.getElementById("trendingList");
@@ -749,7 +771,10 @@ async function startSearch() {
                 "🛍️ <b>پروڈکٹ:</b> " + escapeHtml(item.name || input) + "<br>" +
                 "💰 <b>قیمت:</b> Rs " + escapeHtml(String(item.price)) + trendHtml + "<br>" +
                 "🏪 <b>دکان/مارکیٹ:</b> " + escapeHtml(item.shop || "—") + " " + (item.verified ? "✅" : "") +
+                "<div id=\"aiPredictionBox\" style=\"margin-top:10px; font-size:13px; color:#666;\"></div>" +
                 "</div>";
+
+            loadAiPrediction(input);
         } else {
             result.innerHTML = "<span style='color: #d97706;'>❌ کوئی نتیجہ نہیں ملا، براہ کرم نام یا املا (Spelling) چیک کریں۔</span>";
         }
