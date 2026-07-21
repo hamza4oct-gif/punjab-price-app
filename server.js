@@ -1966,32 +1966,37 @@ function handleRequest(req, res) {
                     }
 
                     // Keep conversation history bounded so requests stay fast and small.
-                    const safeHistory = Array.isArray(history) ? history.slice(-10) : [];
+                    const safeHistory = Array.isArray(history) ? history.slice(-6) : [];
                     const systemPrompt = 'Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain. Agar koi kisi cheez ki asli/live price poochhe, unhe app ke Search feature ka istemal karne ka mashwara dein (kyunki aapke pas khud live mandi prices ka access nahi hai) — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware) mein poori tarah madad karein.';
 
-                    const pollinationsMessages = [
-                        { role: 'system', content: systemPrompt },
-                        ...safeHistory
-                            .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-                            .map(m => ({ role: m.role, content: m.content.slice(0, 2000) })),
-                        { role: 'user', content: String(message).slice(0, 2000) }
-                    ];
+                    // IMPORTANT: Pollinations' newer "/openai" (OpenAI-compatible) endpoint
+                    // now sometimes demands a paid API key/budget (402 Payment Required),
+                    // even with no key sent — Pollinations' own docs confirm this endpoint
+                    // is being restricted. Their SIMPLE endpoint (GET /{prompt}) is the one
+                    // explicitly confirmed to stay free and anonymous, so we use that
+                    // instead — building a short transcript into a single prompt string
+                    // since this endpoint doesn't accept a structured messages array.
+                    const transcriptLines = safeHistory
+                        .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+                        .map(m => (m.role === 'user' ? 'User: ' : 'Assistant: ') + m.content.slice(0, 500));
+                    const fullPrompt = [
+                        systemPrompt,
+                        ...transcriptLines,
+                        'User: ' + String(message).slice(0, 1000),
+                        'Assistant:'
+                    ].join('\n');
 
-                    const response = await axios.post(
-                        'https://text.pollinations.ai/openai',
+                    const response = await axios.get(
+                        'https://text.pollinations.ai/' + encodeURIComponent(fullPrompt),
                         {
-                            model: 'openai',
-                            messages: pollinationsMessages
-                        },
-                        {
-                            headers: { 'Content-Type': 'application/json' },
-                            timeout: 20000
+                            params: { model: 'openai' },
+                            timeout: 20000,
+                            responseType: 'text',
+                            transformResponse: [(data) => data] // keep as raw string, don't try to JSON-parse
                         }
                     );
 
-                    const reply = response.data && response.data.choices && response.data.choices[0]
-                        ? response.data.choices[0].message.content
-                        : '';
+                    const reply = typeof response.data === 'string' ? response.data.trim() : '';
 
                     const usedCount = incrementChatUsage(clientIp);
 
