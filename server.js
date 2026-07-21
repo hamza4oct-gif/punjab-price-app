@@ -949,6 +949,40 @@ function isRateLimited(ip) {
     return entry.count > CONFIG.RATE_LIMIT_MAX_REQUESTS;
 }
 
+// ============ DAILY CHAT MESSAGE LIMIT (25/day per user, resets at midnight) ============
+// Keeps the free Gemini quota from being drained by one person spamming chat.
+// Tracked separately from the general API rate limiter above (that one is
+// per-minute across all endpoints; this one is per-day, chat-only).
+const CHAT_DAILY_LIMIT = 25;
+const chatDailyMap = new Map();
+
+function getTodayKey() {
+    return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function getChatUsage(ip) {
+    const today = getTodayKey();
+    const entry = chatDailyMap.get(ip);
+    if (!entry || entry.day !== today) {
+        const fresh = { day: today, count: 0 };
+        chatDailyMap.set(ip, fresh);
+        return fresh;
+    }
+    return entry;
+}
+
+function isChatLimitExceeded(ip) {
+    const entry = getChatUsage(ip);
+    return entry.count >= CHAT_DAILY_LIMIT;
+}
+
+function incrementChatUsage(ip) {
+    const entry = getChatUsage(ip);
+    entry.count++;
+    chatDailyMap.set(ip, entry);
+    return entry.count;
+}
+
 // ============ CITY-SPECIFIC PRICE LOOKUP ============
 // Fetches the FULL commodity list for one city's mandi, then finds the row
 // matching our item and extracts its price. Used only when the user picked a
@@ -1900,6 +1934,80 @@ function handleRequest(req, res) {
     if (pathname === '/api/sources' && req.method === 'GET') {
         res.writeHead(200);
         res.end(JSON.stringify({ success: true, data: Array.from(sourceRegistry.values()) }));
+        return;
+    }
+
+    // ============ AI CHAT (real AI chatbot, powered by Anthropic Claude) ============
+    if (pathname === '/api/chat' && req.method === 'POST') {
+        // Pollinations AI's text endpoint needs NO API key, NO signup, and has
+        // no billing — so there's no environment variable to configure here.
+
+        const clientIp = req.socket.remoteAddress || 'unknown';
+        if (isChatLimitExceeded(clientIp)) {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                success: false,
+                message: `Aaj ki ${CHAT_DAILY_LIMIT} messages ki limit poori ho gayi hai. Kal phir try karein.`,
+                limitReached: true
+            }));
+            return;
+        }
+
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            (async () => {
+                try {
+                    const { message, history } = JSON.parse(body);
+                    if (!message || typeof message !== 'string' || !message.trim()) {
+                        res.writeHead(400);
+                        res.end(JSON.stringify({ success: false, message: 'Message required' }));
+                        return;
+                    }
+
+                    // Keep conversation history bounded so requests stay fast and small.
+                    const safeHistory = Array.isArray(history) ? history.slice(-10) : [];
+                    const systemPrompt = 'Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain. Agar koi kisi cheez ki asli/live price poochhe, unhe app ke Search feature ka istemal karne ka mashwara dein (kyunki aapke pas khud live mandi prices ka access nahi hai) — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware) mein poori tarah madad karein.';
+
+                    const pollinationsMessages = [
+                        { role: 'system', content: systemPrompt },
+                        ...safeHistory
+                            .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+                            .map(m => ({ role: m.role, content: m.content.slice(0, 2000) })),
+                        { role: 'user', content: String(message).slice(0, 2000) }
+                    ];
+
+                    const response = await axios.post(
+                        'https://text.pollinations.ai/openai',
+                        {
+                            model: 'openai',
+                            messages: pollinationsMessages
+                        },
+                        {
+                            headers: { 'Content-Type': 'application/json' },
+                            timeout: 20000
+                        }
+                    );
+
+                    const reply = response.data && response.data.choices && response.data.choices[0]
+                        ? response.data.choices[0].message.content
+                        : '';
+
+                    const usedCount = incrementChatUsage(clientIp);
+
+                    res.writeHead(200);
+                    res.end(JSON.stringify({
+                        success: true,
+                        reply: reply || 'Maazrat, jawab nahi ban saka.',
+                        remaining: Math.max(0, CHAT_DAILY_LIMIT - usedCount)
+                    }));
+                } catch (e) {
+                    console.error('⚠️ /api/chat error:', e.response ? JSON.stringify(e.response.data) : e.message);
+                    res.writeHead(200);
+                    res.end(JSON.stringify({ success: false, message: 'Chat mein masla aaya, dobara koshish karein.' }));
+                }
+            })();
+        });
         return;
     }
 
