@@ -635,6 +635,10 @@ function spaShowPage(pageName) {
         window.location.hash = '/' + pageName;
     }
     window.scrollTo(0, 0);
+
+    if (pageName === 'chat' && typeof startChatConversation === 'function') {
+        startChatConversation();
+    }
 }
 
 function spaRouteFromHash() {
@@ -1670,12 +1674,27 @@ function register() {
 
 <script>
 let chatHistory = [];
+let chatUserName = null;
+try {
+    chatUserName = localStorage.getItem("ppChatUserName") || null;
+} catch (e) {
+    chatUserName = null;
+}
+
+function saveChatUserName(name) {
+    chatUserName = name;
+    try {
+        localStorage.setItem("ppChatUserName", name);
+    } catch (e) {
+        // ignore if storage unavailable
+    }
+}
 
 function renderChatMessages() {
     const box = document.getElementById("chatMessages");
     if (!box) return;
     if (chatHistory.length === 0) {
-        box.innerHTML = "<div style=\"text-align:center; color:#888; margin-top:30px;\">👋 السلام علیکم! کچھ بھی پوچھیں</div>";
+        box.innerHTML = "<div style=\"text-align:center; color:#888; margin-top:30px;\">👋 خوش آمدید!</div>";
         return;
     }
     box.innerHTML = chatHistory.map((m) => {
@@ -1687,6 +1706,20 @@ function renderChatMessages() {
     box.scrollTop = box.scrollHeight;
 }
 
+function addBotMessage(text) {
+    chatHistory.push({ role: "assistant", content: text });
+    renderChatMessages();
+}
+
+function startChatConversation() {
+    if (chatHistory.length > 0) return; // already started this session
+    if (chatUserName) {
+        addBotMessage("خوش آمدید واپس, " + chatUserName + "! 😊\nکس چیز کی قیمت جاننا چاہتے ہیں؟");
+    } else {
+        addBotMessage("السلام علیکم! 👋 پہلے یہ بتائیں — آپکا نام کیا ہے؟");
+    }
+}
+
 async function sendChatMessage() {
     const input = document.getElementById("chatInput");
     const text = input.value.trim();
@@ -1696,32 +1729,47 @@ async function sendChatMessage() {
     input.value = "";
     renderChatMessages();
 
+    // STEP 1: if we don't have a name yet, this message IS the name.
+    if (!chatUserName) {
+        const cleanName = text.replace(/[^a-zA-Z\u0600-\u06FF\s]/g, "").trim().split(/\s+/)[0] || text;
+        const displayName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+        saveChatUserName(displayName);
+        addBotMessage("خوش ہوا آپ سے مل کر, " + displayName + "! 🙌\nاب بتائیں — کس چیز کی قیمت جاننا چاہتے ہیں؟ (جیسے: چینی، آٹا، آلو)");
+        return;
+    }
+
+    // STEP 2: we have a name — treat this as a price question, use our own search engine.
     const box = document.getElementById("chatMessages");
-    box.innerHTML += "<div id=\"chatTyping\" style=\"color:#888; text-align:right; direction:rtl;\">⏳ لکھ رہا ہے...</div>";
+    box.innerHTML += "<div id=\"chatTyping\" style=\"color:#888; text-align:right; direction:rtl;\">⏳ تلاش ہو رہا ہے...</div>";
     box.scrollTop = box.scrollHeight;
 
     try {
-        const response = await fetch("/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: text, history: chatHistory.slice(0, -1) })
-        });
+        const response = await fetch("/api/search?q=" + encodeURIComponent(text));
         const json = await response.json();
 
-        if (json.success) {
-            let replyText = json.reply;
-            if (typeof json.remaining === "number") {
-                replyText += "\n\n📊 " + json.remaining + "/25 پیغامات آج باقی ہیں";
-            }
-            chatHistory.push({ role: "assistant", content: replyText });
+        if (json.success && json.data && json.data.length > 0) {
+            const item = json.data[0];
+            addBotMessage(
+                chatUserName + " بھائی، " + item.name + " کی قیمت Rs " + item.price +
+                " ہے (" + (item.shop || "Punjab Mandi") + ")۔\n\nکوئی اور چیز پوچھنی ہے؟"
+            );
         } else {
-            chatHistory.push({ role: "assistant", content: "⚠️ " + (json.message || "Kuch masla ho gaya.") });
+            addBotMessage(
+                "معذرت " + chatUserName + "، یہ چیز نہیں ملی۔ 🤔\nنام/املا چیک کر کے دوبارہ کوشش کریں، یا Search tab استعمال کریں۔"
+            );
         }
     } catch (err) {
-        console.error("Chat error:", err);
-        chatHistory.push({ role: "assistant", content: "⚠️ سرور سے رابطہ ناکام رہا۔" });
+        console.error("Chat search error:", err);
+        addBotMessage("⚠️ سرور سے رابطہ ناکام رہا، دوبارہ کوشش کریں۔");
     }
+}
+
+function resetChatName() {
+    chatUserName = null;
+    try { localStorage.removeItem("ppChatUserName"); } catch (e) {}
+    chatHistory = [];
     renderChatMessages();
+    startChatConversation();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
