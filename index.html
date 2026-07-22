@@ -174,6 +174,74 @@ body { margin: 0; font-family: Arial, sans-serif; }
 #page-home.dark-mode .calc-grid .calc-fn { background: #7f1d1d; color: #fecaca; }
 #page-home.dark-mode .calc-grid .calc-eq { background: #15803d; color: white; }
 
+/* ---- Daraz-style home feed grid ---- */
+#page-home .feed-section-title {
+    width: 90%;
+    max-width: 400px;
+    text-align: right;
+    direction: rtl;
+    font-size: 17px;
+    font-weight: bold;
+    margin-top: 24px;
+    margin-bottom: 4px;
+    color: #1e293b;
+}
+#page-home.dark-mode .feed-section-title { color: #e2e8f0; }
+#page-home .feed-note {
+    width: 90%;
+    max-width: 400px;
+    text-align: right;
+    direction: rtl;
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 10px;
+}
+#page-home .feed-grid {
+    width: 90%;
+    max-width: 400px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+#page-home .feed-card {
+    background: white;
+    border-radius: 14px;
+    padding: 14px 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    text-align: center;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+#page-home .feed-card:active { transform: scale(0.96); }
+#page-home.dark-mode .feed-card { background: #1e293b; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+#page-home .feed-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #eef2ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    margin: 0 auto 8px;
+}
+#page-home.dark-mode .feed-icon { background: #334155; }
+#page-home .feed-name-ur { font-size: 15px; font-weight: bold; direction: rtl; }
+#page-home .feed-name-en { font-size: 11px; color: #888; margin-top: 1px; }
+#page-home .feed-price-row { font-size: 12px; margin-top: 8px; direction: rtl; text-align: right; }
+#page-home .feed-price-label { color: #888; }
+#page-home .feed-price-value { font-weight: bold; color: #1e293b; }
+#page-home.dark-mode .feed-price-value { color: #e2e8f0; }
+#page-home .feed-live-btn {
+    margin-top: 8px;
+    width: 100%;
+    max-width: none;
+    padding: 7px 0;
+    font-size: 12px;
+    background: #16a34a;
+    border-radius: 8px;
+}
+
 #page-shopkeeper {
     font-family: Arial, sans-serif;
     background: linear-gradient(135deg, #1e40af, #3b82f6);
@@ -357,6 +425,10 @@ body { margin: 0; font-family: Arial, sans-serif; }
             <div style="font-size:16px; font-weight:bold; margin-bottom:8px;">🔥 آج کل زیادہ تلاش ہو رہا ہے</div>
             <div id="trendingList" style="font-size:14px; text-align:right; direction:rtl;"></div>
         </div>
+
+        <div class="feed-section-title">🛒 روزمرہ ضروریات</div>
+        <div class="feed-note">نمونہ قیمتیں — لائیو قیمت کے لیے کارڈ پر بٹن دبائیں</div>
+        <div class="feed-grid" id="homeFeedGrid"></div>
     </div>
 
     <div class="bottom-nav">
@@ -738,6 +810,44 @@ async function loadAiPrediction(searchTerm) {
     }
 }
 
+// ---- Daraz-style home feed: STATIC local data, no live requests on load ----
+const HOME_FEED_ITEMS = [
+    { nameUrdu: "آٹا", nameEn: "Wheat Flour", icon: "🌾", searchKey: "atta", wholesale: 90, retail: 104 },
+    { nameUrdu: "چینی", nameEn: "Sugar", icon: "🍬", searchKey: "chini", wholesale: 140, retail: 161 },
+    { nameUrdu: "نمک", nameEn: "Salt", icon: "🧂", searchKey: "namak", wholesale: 25, retail: 29 },
+    { nameUrdu: "چاول باسمتی", nameEn: "Basmati Rice", icon: "🍚", searchKey: "basmati", wholesale: 280, retail: 322 },
+    { nameUrdu: "آلو", nameEn: "Potato", icon: "🥔", searchKey: "aloo", wholesale: 90, retail: 104 },
+    { nameUrdu: "پیاز", nameEn: "Onion", icon: "🧅", searchKey: "pyaz", wholesale: 70, retail: 81 },
+    { nameUrdu: "ٹماٹر", nameEn: "Tomato", icon: "🍅", searchKey: "tamatar", wholesale: 100, retail: 115 },
+    { nameUrdu: "دال مسور", nameEn: "Masoor Daal", icon: "🫘", searchKey: "masoor", wholesale: 260, retail: 299 },
+    { nameUrdu: "لہسن", nameEn: "Garlic", icon: "🧄", searchKey: "lasun", wholesale: 350, retail: 403 },
+    { nameUrdu: "ہلدی", nameEn: "Turmeric", icon: "🟡", searchKey: "haldi", wholesale: 450, retail: 518 },
+    { nameUrdu: "لال مرچ", nameEn: "Red Chilli", icon: "🌶️", searchKey: "mirch", wholesale: 600, retail: 690 },
+    { nameUrdu: "چاول", nameEn: "Rice", icon: "🍙", searchKey: "chawal", wholesale: 180, retail: 207 }
+];
+
+function renderHomeFeed() {
+    const grid = document.getElementById("homeFeedGrid");
+    if (!grid) return;
+    grid.innerHTML = HOME_FEED_ITEMS.map((item) =>
+        "<div class=\"feed-card\">" +
+        "<div class=\"feed-icon\">" + item.icon + "</div>" +
+        "<div class=\"feed-name-ur\">" + item.nameUrdu + "</div>" +
+        "<div class=\"feed-name-en\">" + item.nameEn + "</div>" +
+        "<div class=\"feed-price-row\"><span class=\"feed-price-label\">ہول سیل:</span> <span class=\"feed-price-value\">Rs " + item.wholesale + "</span></div>" +
+        "<div class=\"feed-price-row\"><span class=\"feed-price-label\">ریٹیل:</span> <span class=\"feed-price-value\">Rs ~" + item.retail + "</span></div>" +
+        "<button type=\"button\" class=\"feed-live-btn\" onclick=\"searchFromFeed('" + item.searchKey + "')\">🔎 Live Price</button>" +
+        "</div>"
+    ).join("");
+}
+
+function searchFromFeed(searchKey) {
+    const inputBox = document.getElementById("inputBox");
+    if (inputBox) inputBox.value = searchKey;
+    startSearch();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 async function loadTrending() {
     const trendingCard = document.getElementById("trendingCard");
     const trendingList = document.getElementById("trendingList");
@@ -1001,6 +1111,7 @@ document.getElementById("inputBox").addEventListener("keypress", function(event)
 loadCityOptions();
 loadTrending();
 loadItemSuggestions();
+renderHomeFeed();
 </script>
 
 <script>
