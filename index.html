@@ -1720,31 +1720,32 @@ function startChatConversation() {
     }
 }
 
-async function sendChatMessage() {
-    const input = document.getElementById("chatInput");
-    const text = input.value.trim();
-    if (!text) return;
-
-    chatHistory.push({ role: "user", content: text });
-    input.value = "";
-    renderChatMessages();
-
-    // STEP 1: if we don't have a name yet, this message IS the name.
-    if (!chatUserName) {
-        const cleanName = text.replace(/[^a-zA-Z\u0600-\u06FF\s]/g, "").trim().split(/\s+/)[0] || text;
-        const displayName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
-        saveChatUserName(displayName);
-        addBotMessage("خوش ہوا آپ سے مل کر, " + displayName + "! 🙌\nاب بتائیں — کس چیز کی قیمت جاننا چاہتے ہیں؟ (جیسے: چینی، آٹا، آلو)");
-        return;
+function extractName(text) {
+    // Recognizes common ways people actually introduce themselves, in
+    // Roman Urdu, Urdu, and English, instead of naively grabbing the first word.
+    const patterns = [
+        /mera\s+na?am\s+([a-zA-Z\u0600-\u06FF]+)/i,
+        /میرا\s*نام\s*([a-zA-Z\u0600-\u06FF]+)/i,
+        /main\s+([a-zA-Z\u0600-\u06FF]+)\s+(?:hun|hoon)/i,
+        /my\s+name\s+is\s+([a-zA-Z]+)/i,
+        /naam\s+([a-zA-Z\u0600-\u06FF]+)\s+hai/i
+    ];
+    for (const p of patterns) {
+        const m = text.match(p);
+        if (m && m[1]) return m[1];
     }
+    // No pattern matched — assume they just typed their name plainly.
+    const cleaned = text.replace(/[^a-zA-Z\u0600-\u06FF\s]/g, "").trim();
+    return cleaned.split(/\s+/)[0] || text;
+}
 
-    // STEP 2: we have a name — treat this as a price question, use our own search engine.
+async function answerPriceQuery(queryText) {
     const box = document.getElementById("chatMessages");
     box.innerHTML += "<div id=\"chatTyping\" style=\"color:#888; text-align:right; direction:rtl;\">⏳ تلاش ہو رہا ہے...</div>";
     box.scrollTop = box.scrollHeight;
 
     try {
-        const response = await fetch("/api/search?q=" + encodeURIComponent(text));
+        const response = await fetch("/api/search?q=" + encodeURIComponent(queryText));
         const json = await response.json();
 
         if (json.success && json.data && json.data.length > 0) {
@@ -1762,6 +1763,38 @@ async function sendChatMessage() {
         console.error("Chat search error:", err);
         addBotMessage("⚠️ سرور سے رابطہ ناکام رہا، دوبارہ کوشش کریں۔");
     }
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById("chatInput");
+    const text = input.value.trim();
+    if (!text) return;
+
+    chatHistory.push({ role: "user", content: text });
+    input.value = "";
+    renderChatMessages();
+
+    // STEP 1: if we don't have a name yet, extract it properly from the sentence.
+    if (!chatUserName) {
+        const extractedName = extractName(text);
+        const displayName = extractedName.charAt(0).toUpperCase() + extractedName.slice(1);
+        saveChatUserName(displayName);
+        addBotMessage("خوش ہوا آپ سے مل کر, " + displayName + "! 🙌");
+
+        // If their very first message ALSO seems to contain a price question
+        // (not just their name), answer it right away instead of making them
+        // repeat themselves.
+        const looksLikeJustAName = text.trim().split(/\s+/).length <= 2;
+        if (!looksLikeJustAName) {
+            await answerPriceQuery(text);
+        } else {
+            addBotMessage("اب بتائیں — کس چیز کی قیمت جاننا چاہتے ہیں؟ (جیسے: چینی، آٹا، آلو)");
+        }
+        return;
+    }
+
+    // STEP 2: we have a name — treat this as a price question, use our own search engine.
+    await answerPriceQuery(text);
 }
 
 function resetChatName() {
