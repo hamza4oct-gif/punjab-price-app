@@ -1977,9 +1977,37 @@ function extractName(text) {
 
 async function answerPriceQuery(queryText) {
     const box = document.getElementById("chatMessages");
-    box.innerHTML += "<div id=\"chatTyping\" style=\"color:#888; text-align:right; direction:rtl;\">⏳ تلاش ہو رہا ہے...</div>";
+    box.innerHTML += "<div id=\"chatTyping\" style=\"color:#888; text-align:right; direction:rtl;\">⏳ سوچ رہا ہے...</div>";
     box.scrollTop = box.scrollHeight;
 
+    try {
+        const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                message: queryText,
+                history: chatHistory.slice(0, -1),
+                userName: chatUserName
+            })
+        });
+        const json = await response.json();
+
+        if (json.success) {
+            addBotMessage(json.reply);
+        } else if (json.message && json.message.indexOf("GEMINI_API_KEY") !== -1) {
+            // Gemini not configured yet on the server — gracefully fall back
+            // to our own search engine so chat still works either way.
+            await answerViaOwnSearch(queryText);
+        } else {
+            addBotMessage("⚠️ " + (json.message || "کچھ مسئلہ ہو گیا۔"));
+        }
+    } catch (err) {
+        console.error("Chat error:", err);
+        addBotMessage("⚠️ سرور سے رابطہ ناکام رہا، دوبارہ کوشش کریں۔");
+    }
+}
+
+async function answerViaOwnSearch(queryText) {
     try {
         const response = await fetch("/api/search?q=" + encodeURIComponent(queryText));
         const json = await response.json();
@@ -1996,7 +2024,7 @@ async function answerPriceQuery(queryText) {
             );
         }
     } catch (err) {
-        console.error("Chat search error:", err);
+        console.error("Chat search fallback error:", err);
         addBotMessage("⚠️ سرور سے رابطہ ناکام رہا، دوبارہ کوشش کریں۔");
     }
 }
@@ -2024,12 +2052,12 @@ async function sendChatMessage() {
         if (!looksLikeJustAName) {
             await answerPriceQuery(text);
         } else {
-            addBotMessage("اب بتائیں — کس چیز کی قیمت جاننا چاہتے ہیں؟ (جیسے: چینی، آٹا، آلو)");
+            addBotMessage("اب بتائیں — کیا پوچھنا چاہتے ہیں؟ کوئی بھی سوال کر سکتے ہیں 😊");
         }
         return;
     }
 
-    // STEP 2: we have a name — treat this as a price question, use our own search engine.
+    // STEP 2: we have a name — send to our AI chat (which also has access to live prices).
     await answerPriceQuery(text);
 }
 
