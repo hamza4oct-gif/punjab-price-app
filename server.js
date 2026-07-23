@@ -1939,8 +1939,20 @@ function handleRequest(req, res) {
 
     // ============ AI CHAT (real AI chatbot, powered by Anthropic Claude) ============
     if (pathname === '/api/chat' && req.method === 'POST') {
-        // Pollinations AI's text endpoint needs NO API key, NO signup, and has
-        // no billing — so there's no environment variable to configure here.
+        // Uses Google Gemini's free tier (gemini-2.5-flash) — genuinely free,
+        // no credit card, run by Google (far more stable than smaller free
+        // services). Needs one setup step: a free API key from
+        // aistudio.google.com, added as GEMINI_API_KEY in Render's
+        // Environment tab. Until that's set, chat replies with a clear
+        // message instead of crashing.
+        if (!process.env.GEMINI_API_KEY) {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                success: false,
+                message: 'Chat abhi setup nahi hua — GEMINI_API_KEY Render Environment Variables mein add karni hai.'
+            }));
+            return;
+        }
 
         const clientIp = req.socket.remoteAddress || 'unknown';
         if (isChatLimitExceeded(clientIp)) {
@@ -1958,7 +1970,7 @@ function handleRequest(req, res) {
         req.on('end', () => {
             (async () => {
                 try {
-                    const { message, history } = JSON.parse(body);
+                    const { message, history, userName } = JSON.parse(body);
                     if (!message || typeof message !== 'string' || !message.trim()) {
                         res.writeHead(400);
                         res.end(JSON.stringify({ success: false, message: 'Message required' }));
@@ -1966,37 +1978,64 @@ function handleRequest(req, res) {
                     }
 
                     // Keep conversation history bounded so requests stay fast and small.
-                    const safeHistory = Array.isArray(history) ? history.slice(-6) : [];
-                    const systemPrompt = 'Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain. Agar koi kisi cheez ki asli/live price poochhe, unhe app ke Search feature ka istemal karne ka mashwara dein (kyunki aapke pas khud live mandi prices ka access nahi hai) — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware) mein poori tarah madad karein.';
+                    const safeHistory = Array.isArray(history) ? history.slice(-10) : [];
+                    const geminiContents = [
+                        ...safeHistory
+                            .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+                            .map(m => ({
+                                role: m.role === 'assistant' ? 'model' : 'user',
+                                parts: [{ text: m.content.slice(0, 2000) }]
+                            })),
+                        { role: 'user', parts: [{ text: String(message).slice(0, 2000) }] }
+                    ];
 
-                    // IMPORTANT: Pollinations' newer "/openai" (OpenAI-compatible) endpoint
-                    // now sometimes demands a paid API key/budget (402 Payment Required),
-                    // even with no key sent — Pollinations' own docs confirm this endpoint
-                    // is being restricted. Their SIMPLE endpoint (GET /{prompt}) is the one
-                    // explicitly confirmed to stay free and anonymous, so we use that
-                    // instead — building a short transcript into a single prompt string
-                    // since this endpoint doesn't accept a structured messages array.
-                    const transcriptLines = safeHistory
-                        .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-                        .map(m => (m.role === 'user' ? 'User: ' : 'Assistant: ') + m.content.slice(0, 500));
-                    const fullPrompt = [
-                        systemPrompt,
-                        ...transcriptLines,
-                        'User: ' + String(message).slice(0, 1000),
-                        'Assistant:'
-                    ].join('\n');
+                    const safeUserName = typeof userName === 'string' ? userName.replace(/[^a-zA-Z\u0600-\u06FF\s]/g, '').slice(0, 30) : '';
+                    const namePart = safeUserName ? `User ka naam "${safeUserName}" hai — unhe isi naam se pukarein.` : '';
 
-                    const response = await axios.get(
-                        'https://text.pollinations.ai/' + encodeURIComponent(fullPrompt),
+                    // If the message seems to be about a known item, fetch our OWN
+                    // live price data and hand it to Gemini as context — this way
+                    // the chatbot can answer price questions with real numbers
+                    // instead of just deflecting to the Search tab.
+                    let liveDataNote = '';
+                    try {
+                        const lowerMsg = sanitizeInput(String(message)).toLowerCase();
+                        const canonicalKey = resolveCanonicalKey(lowerMsg);
+                        if (canonicalKey) {
+                            const searchResult = await withTimeout(
+                                performSmartSearch(lowerMsg),
+                                CONFIG.INTERNET_SEARCH_TOTAL_BUDGET_MS
+                            );
+                            if (searchResult && searchResult.success && searchResult.data && searchResult.data[0]) {
+                                const item = searchResult.data[0];
+                                liveDataNote = ` [LIVE DATA MILA HAI]: "${item.name}" ki abhi ki qeemat Rs ${item.price} hai (${item.shop || 'Punjab Mandi'} se). Ye asli, taaza data hai — isay seedha jawab mein istemal karein, "Search tab istemal karein" mat kahein.`;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('⚠️ Chat live-data lookup failed:', e.message);
+                    }
+
+                    const systemPrompt = `Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. ${namePart} Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain.${liveDataNote} Agar koi kisi aisi cheez ki price poochhe jiska data upar nahi diya gaya, unhe app ke Search feature ka istemal karne ka mashwara dein — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware) mein poori tarah madad karein.`;
+
+                    const response = await axios.post(
+                        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
                         {
-                            params: { model: 'openai' },
-                            timeout: 20000,
-                            responseType: 'text',
-                            transformResponse: [(data) => data] // keep as raw string, don't try to JSON-parse
+                            contents: geminiContents,
+                            systemInstruction: { parts: [{ text: systemPrompt }] },
+                            generationConfig: { maxOutputTokens: 500 }
+                        },
+                        {
+                            headers: {
+                                'x-goog-api-key': process.env.GEMINI_API_KEY,
+                                'Content-Type': 'application/json'
+                            },
+                            timeout: 20000
                         }
                     );
 
-                    const reply = typeof response.data === 'string' ? response.data.trim() : '';
+                    const candidate = (response.data.candidates || [])[0];
+                    const reply = candidate && candidate.content && candidate.content.parts
+                        ? candidate.content.parts.map(p => p.text || '').join('\n')
+                        : '';
 
                     const usedCount = incrementChatUsage(clientIp);
 
