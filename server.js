@@ -1939,7 +1939,7 @@ function handleRequest(req, res) {
 
     // ============ AI CHAT (real AI chatbot, powered by Anthropic Claude) ============
     if (pathname === '/api/chat' && req.method === 'POST') {
-        // Uses Google Gemini's free tier (gemini-2.5-flash) — genuinely free,
+        // Uses Google Gemini's free tier (gemini-1.5-flash) — genuinely free,
         // no credit card, run by Google (far more stable than smaller free
         // services). Needs one setup step: a free API key from
         // aistudio.google.com, added as GEMINI_API_KEY in Render's
