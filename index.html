@@ -84,12 +84,71 @@ body { margin: 0; font-family: Arial, sans-serif; }
 }
 #page-home button:active { transform: scale(0.90); background: #1d4ed8; }
 #page-home button:hover { background: #2563eb; }
+
+/* ---- Prominent search bar (icon + input + mic) ---- */
+#page-home .search-bar-wrap {
+    width: 90%;
+    max-width: 400px;
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    background: white;
+    border: 2px solid #3b82f6;
+    border-radius: 14px;
+    padding: 4px 6px 4px 14px;
+    box-shadow: 0 3px 12px rgba(59, 130, 246, 0.15);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+#page-home .search-bar-wrap:focus-within {
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.22), 0 3px 12px rgba(59, 130, 246, 0.2);
+    border-color: #1d4ed8;
+}
+#page-home.dark-mode .search-bar-wrap { background: #1e293b; border-color: #3b82f6; }
+#page-home .search-bar-icon { font-size: 18px; margin-right: 8px; color: #64748b; flex-shrink: 0; }
+#page-home .search-bar-wrap input {
+    flex: 1;
+    border: none;
+    margin: 0;
+    padding: 12px 4px;
+    width: auto;
+    max-width: none;
+    box-shadow: none;
+    background: transparent;
+    text-align: right;
+}
+#page-home .search-bar-wrap input:focus { outline: none; }
+#page-home .mic-btn {
+    background: #eef2ff;
+    color: #1e40af;
+    border: none;
+    border-radius: 10px;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    font-size: 18px;
+    margin: 0;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease, transform 0.15s ease;
+}
+#page-home .mic-btn:active { transform: scale(0.9); }
+#page-home.dark-mode .mic-btn { background: #334155; color: #93c5fd; }
+#page-home .mic-btn.mic-listening { background: #dc2626; color: white; animation: micPulse 1s infinite; }
+@keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+}
+
 #page-home .card {
     background: white;
     padding: 20px;
     margin-top: 20px;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 16px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 4px 16px rgba(30, 64, 175, 0.08);
     font-size: 18px;
     line-height: 1.6;
     min-height: 50px;
@@ -165,7 +224,7 @@ body { margin: 0; font-family: Arial, sans-serif; }
 #page-home.dark-mode header { background: #1e293b; }
 #page-home.dark-mode input,
 #page-home.dark-mode select { background: #1e293b; color: #e2e8f0; border-color: #334155; }
-#page-home.dark-mode .card { background: #1e293b; color: #e2e8f0; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4); }
+#page-home.dark-mode .card { background: #1e293b; color: #e2e8f0; border-color: rgba(255,255,255,0.08); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); }
 #page-home.dark-mode .bottom-nav { background: #1e293b; box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.4); }
 #page-home.dark-mode .bottom-nav button { color: #93c5fd; }
 #page-home.dark-mode .calc-row { border-bottom-color: #334155; }
@@ -206,14 +265,15 @@ body { margin: 0; font-family: Arial, sans-serif; }
 }
 #page-home .feed-card {
     background: white;
-    border-radius: 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
     padding: 14px 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    box-shadow: 0 3px 10px rgba(30, 64, 175, 0.07);
     text-align: center;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 #page-home .feed-card:active { transform: scale(0.96); }
-#page-home.dark-mode .feed-card { background: #1e293b; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+#page-home.dark-mode .feed-card { background: #1e293b; border-color: rgba(255,255,255,0.08); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
 #page-home .feed-icon {
     width: 56px;
     height: 56px;
@@ -410,7 +470,11 @@ body { margin: 0; font-family: Arial, sans-serif; }
 
     <div class="container">
         <h2>Search Product Price</h2>
-        <input type="text" id="inputBox" placeholder="یہاں لکھیں، مثلاً sugar, flour" dir="auto" list="itemSuggestions" autocomplete="off">
+        <div class="search-bar-wrap">
+            <span class="search-bar-icon">🔍</span>
+            <input type="text" id="inputBox" placeholder="یہاں لکھیں، مثلاً sugar, flour" dir="auto" list="itemSuggestions" autocomplete="off">
+            <button type="button" id="micBtn" class="mic-btn" onclick="startVoiceSearch()" title="آواز سے تلاش کریں">🎙️</button>
+        </div>
         <datalist id="itemSuggestions"></datalist>
         <select id="citySelect">
             <option value="">🌍 Sara Punjab (Default)</option>
@@ -885,6 +949,67 @@ async function loadCityOptions() {
         console.error("City list load error:", err);
     }
 }
+
+function startVoiceSearch() {
+    const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const micBtn = document.getElementById("micBtn");
+
+    if (!SpeechRecognitionApi) {
+        alert("معذرت، یہ براؤزر آواز سے تلاش کو سپورٹ نہیں کرتا۔ براہ کرم Chrome استعمال کریں۔");
+        return;
+    }
+
+    const recognition = new SpeechRecognitionApi();
+    recognition.lang = "ur-PK";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    if (micBtn) {
+        micBtn.classList.add("mic-listening");
+        micBtn.textContent = "🔴";
+    }
+
+    recognition.onresult = function (event) {
+        const transcript = event.results[0][0].transcript;
+        const inputBox = document.getElementById("inputBox");
+        if (inputBox) {
+            inputBox.value = transcript;
+            startSearch();
+        }
+    };
+
+    recognition.onerror = function (event) {
+        console.error("Voice recognition error:", event.error);
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+            alert("آواز سنننے کی اجازت نہیں ملی۔ براہ کرم مائیکروفون کی اجازت دیں۔");
+        }
+    };
+
+    recognition.onend = function () {
+        if (micBtn) {
+            micBtn.classList.remove("mic-listening");
+            micBtn.textContent = "🎙️";
+        }
+    };
+
+    try {
+        recognition.start();
+    } catch (err) {
+        console.error("Voice recognition start error:", err);
+        if (micBtn) {
+            micBtn.classList.remove("mic-listening");
+            micBtn.textContent = "🎙️";
+        }
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const micBtn = document.getElementById("micBtn");
+    if (!SpeechRecognitionApi && micBtn) {
+        micBtn.style.display = "none"; // hide gracefully on browsers without support (e.g. Firefox Focus)
+    }
+});
 
 async function startSearch() {
     const inputBox = document.getElementById("inputBox");
