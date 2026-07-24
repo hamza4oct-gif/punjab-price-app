@@ -1994,12 +1994,16 @@ async function answerPriceQuery(queryText) {
 
         if (json.success) {
             addBotMessage(json.reply);
-        } else if (json.message && json.message.indexOf("GEMINI_API_KEY") !== -1) {
-            // Gemini not configured yet on the server — gracefully fall back
-            // to our own search engine so chat still works either way.
-            await answerViaOwnSearch(queryText);
+        } else if (json.limitReached) {
+            // Daily limit hit — this is intentional, don't fall back, just tell them.
+            addBotMessage("⚠️ " + json.message);
         } else {
-            addBotMessage("⚠️ " + (json.message || "کچھ مسئلہ ہو گیا۔"));
+            // ANY other Gemini-side failure (not configured, permission denied,
+            // regional block, rate limit, etc.) — instead of showing a dead-end
+            // error, gracefully fall back to our own search engine so chat
+            // always gives a useful answer regardless of Gemini's status.
+            console.error("Gemini chat failed, falling back to own search:", json.message);
+            await answerViaOwnSearch(queryText);
         }
     } catch (err) {
         console.error("Chat error:", err);
