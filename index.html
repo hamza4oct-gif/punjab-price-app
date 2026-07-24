@@ -712,18 +712,20 @@ body { margin: 0; font-family: Arial, sans-serif; }
 </div>
 
 <div id="page-chat" class="spa-page">
-  <div style="max-width:480px; margin:0 auto; height:100vh; display:flex; flex-direction:column; font-family:Arial, sans-serif;">
-    <div style="background:#1e40af; color:white; padding:15px; text-align:center; font-size:20px; font-weight:bold; display:flex; align-items:center; justify-content:space-between;">
-      <button type="button" onclick="spaShowPage('home')" style="background:none; border:none; color:white; font-size:22px; cursor:pointer; padding:0 8px; margin:0; width:auto;">←</button>
-      <span>🤖 AI Chat</span>
-      <span style="width:30px;"></span>
+  <div style="max-width:480px; margin:0 auto; height:100vh; display:flex; flex-direction:column; font-family:Arial, sans-serif; background:#eef2f9;">
+    <div style="background:linear-gradient(135deg, #1e40af, #3b82f6); color:white; padding:16px; text-align:center; font-size:19px; font-weight:bold; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 10px rgba(30,64,175,0.25); z-index:2;">
+      <button type="button" onclick="spaShowPage('home')" style="background:rgba(255,255,255,0.15); border:none; color:white; font-size:20px; cursor:pointer; padding:0; margin:0; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center;">←</button>
+      <span>🤖 AI Chat Assistant</span>
+      <span style="width:36px;"></span>
     </div>
-    <div id="chatMessages" style="flex:1; overflow-y:auto; padding:16px; background:#f5f7fb;"></div>
-    <div style="display:flex; gap:8px; padding:12px; background:white; border-top:1px solid #eee;">
+    <div id="chatMessages" style="flex:1; overflow-y:auto; padding:16px;"></div>
+    <div style="display:flex; align-items:center; gap:8px; padding:12px; background:white; border-top:1px solid #eee; box-shadow:0 -2px 10px rgba(0,0,0,0.04);">
       <input type="text" id="chatInput" placeholder="Apna sawal likhein..." dir="auto"
-        style="flex:1; padding:12px; border-radius:20px; border:1px solid #ccc; font-size:15px;">
+        style="flex:1; padding:13px 16px; border-radius:22px; border:1.5px solid #dde3f0; font-size:15px; background:#f8fafc;">
+      <button type="button" id="chatMicBtn" onclick="startChatVoiceInput()" title="آواز سے لکھیں"
+        style="background:#eef2ff; color:#1e40af; border:none; border-radius:50%; width:44px; height:44px; min-width:44px; font-size:18px; cursor:pointer; margin:0; padding:0; display:flex; align-items:center; justify-content:center;">🎙️</button>
       <button type="button" onclick="sendChatMessage()"
-        style="background:#1e40af; color:white; border:none; border-radius:50%; width:44px; height:44px; font-size:18px; cursor:pointer; margin:0; padding:0;">➤</button>
+        style="background:linear-gradient(135deg, #1e40af, #3b82f6); color:white; border:none; border-radius:50%; width:44px; height:44px; min-width:44px; font-size:18px; cursor:pointer; margin:0; padding:0; box-shadow:0 2px 8px rgba(30,64,175,0.3);">➤</button>
     </div>
   </div>
 </div>
@@ -824,6 +826,13 @@ async function loadItemSuggestions() {
     } catch (err) {
         console.error("Item suggestions load error:", err);
     }
+}
+
+function shareOnWhatsApp(itemName, price, shop) {
+    const text = "🛍️ " + itemName + "\n💰 قیمت: Rs " + price + "\n🏪 " + shop +
+        "\n\nPunjab Price App سے دیکھیں: " + window.location.origin;
+    const url = "https://wa.me/?text=" + encodeURIComponent(text);
+    window.open(url, "_blank");
 }
 
 async function compareCities(searchTerm) {
@@ -950,6 +959,70 @@ async function loadCityOptions() {
     }
 }
 
+function startChatVoiceInput() {
+    const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const micBtn = document.getElementById("chatMicBtn");
+
+    if (!SpeechRecognitionApi) {
+        alert("معذرت، یہ براؤزر آواز سے لکھنے کو سپورٹ نہیں کرتا۔ براہ کرم Chrome استعمال کریں۔");
+        return;
+    }
+
+    const recognition = new SpeechRecognitionApi();
+    recognition.lang = "ur-PK";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    if (micBtn) {
+        micBtn.style.background = "#dc2626";
+        micBtn.style.color = "white";
+        micBtn.textContent = "🔴";
+    }
+
+    recognition.onresult = function (event) {
+        const transcript = event.results[0][0].transcript;
+        const chatInput = document.getElementById("chatInput");
+        if (chatInput) {
+            chatInput.value = transcript;
+            sendChatMessage();
+        }
+    };
+
+    recognition.onerror = function (event) {
+        console.error("Chat voice recognition error:", event.error);
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+            alert("آواز سنننے کی اجازت نہیں ملی۔ براہ کرم مائیکروفون کی اجازت دیں۔");
+        }
+    };
+
+    recognition.onend = function () {
+        if (micBtn) {
+            micBtn.style.background = "#eef2ff";
+            micBtn.style.color = "#1e40af";
+            micBtn.textContent = "🎙️";
+        }
+    };
+
+    try {
+        recognition.start();
+    } catch (err) {
+        console.error("Chat voice recognition start error:", err);
+        if (micBtn) {
+            micBtn.style.background = "#eef2ff";
+            micBtn.style.color = "#1e40af";
+            micBtn.textContent = "🎙️";
+        }
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const chatMicBtn = document.getElementById("chatMicBtn");
+    if (!SpeechRecognitionApi && chatMicBtn) {
+        chatMicBtn.style.display = "none";
+    }
+});
+
 function startVoiceSearch() {
     const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
     const micBtn = document.getElementById("micBtn");
@@ -1057,6 +1130,7 @@ async function startSearch() {
                 "<div id=\"aiPredictionBox\" style=\"margin-top:10px; font-size:13px; color:#666;\"></div>" +
                 "<button type=\"button\" onclick=\"compareCities('" + escapeHtml(input.replace(/'/g, "")) + "')\" style=\"margin-top:12px; background:#0891b2;\">🏙️ Sab Shehron Mein Compare Karein</button>" +
                 "<div id=\"cityCompareBox\" style=\"margin-top:10px; font-size:14px; text-align:right; direction:rtl;\"></div>" +
+                "<button type=\"button\" onclick=\"shareOnWhatsApp('" + escapeHtml(String(item.name || input)) + "', '" + escapeHtml(String(item.price)) + "', '" + escapeHtml(String(item.shop || "Punjab Mandi")) + "')\" style=\"margin-top:10px; background:#25D366; display:flex; align-items:center; justify-content:center; gap:8px;\">📤 WhatsApp پر شیئر کریں</button>" +
                 "</div>";
 
             loadAiPrediction(input);
@@ -1930,14 +2004,18 @@ function renderChatMessages() {
     const box = document.getElementById("chatMessages");
     if (!box) return;
     if (chatHistory.length === 0) {
-        box.innerHTML = "<div style=\"text-align:center; color:#888; margin-top:30px;\">👋 خوش آمدید!</div>";
+        box.innerHTML = "<div style=\"text-align:center; color:#888; margin-top:60px;\">" +
+            "<div style=\"font-size:44px;\">🤖</div>" +
+            "<div style=\"margin-top:10px; font-size:15px;\">خوش آمدید! کچھ بھی پوچھیں</div></div>";
         return;
     }
     box.innerHTML = chatHistory.map((m) => {
         const isUser = m.role === "user";
-        return "<div style=\"display:flex; justify-content:" + (isUser ? "flex-end" : "flex-start") + "; margin-bottom:10px;\">" +
-            "<div style=\"max-width:80%; padding:10px 14px; border-radius:16px; background:" + (isUser ? "#1e40af" : "white") + "; color:" + (isUser ? "white" : "#1f2937") + "; box-shadow:0 1px 3px rgba(0,0,0,0.1); text-align:right; direction:rtl; white-space:pre-wrap;\">" +
-            escapeHtml(m.content) + "</div></div>";
+        const bubble = "<div style=\"max-width:78%; padding:11px 15px; border-radius:" + (isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px") + "; background:" + (isUser ? "linear-gradient(135deg, #1e40af, #3b82f6)" : "white") + "; color:" + (isUser ? "white" : "#1f2937") + "; box-shadow:0 1px 4px rgba(0,0,0,0.1); border:" + (isUser ? "none" : "1px solid rgba(0,0,0,0.05)") + "; text-align:right; direction:rtl; white-space:pre-wrap; font-size:14.5px; line-height:1.6;\">" +
+            escapeHtml(m.content) + "</div>";
+        const avatar = !isUser ? "<div style=\"width:28px; height:28px; border-radius:50%; background:#eef2ff; display:flex; align-items:center; justify-content:center; font-size:15px; margin-left:6px; flex-shrink:0;\">🤖</div>" : "";
+        return "<div style=\"display:flex; justify-content:" + (isUser ? "flex-end" : "flex-start") + "; align-items:flex-end; margin-bottom:12px;\">" +
+            (isUser ? bubble : avatar + bubble) + "</div>";
     }).join("");
     box.scrollTop = box.scrollHeight;
 }
