@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Punjab Price App</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1e40af">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Arial, sans-serif; }
@@ -483,6 +486,12 @@ body { margin: 0; font-family: Arial, sans-serif; }
 
         <div class="card" id="result">
             نتائج یہاں نظر آئیں گے
+        </div>
+
+        <div class="card" id="installBanner" style="display:none; background:linear-gradient(135deg, #1e40af, #3b82f6); color:white;">
+            <div style="font-size:16px; font-weight:bold;">📲 App Apne Phone Par Install Karein</div>
+            <div style="font-size:13px; margin-top:4px; opacity:0.9;">Play Store ke bagair, ek hi tap mein — Home Screen par icon aa jayega</div>
+            <button type="button" onclick="installApp()" style="margin-top:12px; background:white; color:#1e40af; font-weight:bold;">Install Karein</button>
         </div>
 
         <div class="card" id="trendingCard" style="display:none;">
@@ -1330,10 +1339,43 @@ document.getElementById("inputBox").addEventListener("keypress", function(event)
     }
 });
 
+// ---- PWA: capture install prompt and show our own "Install Karein" banner ----
+let deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", function (event) {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    const banner = document.getElementById("installBanner");
+    if (banner) banner.style.display = "block";
+});
+
+function installApp() {
+    const banner = document.getElementById("installBanner");
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.finally(function () {
+        deferredInstallPrompt = null;
+        if (banner) banner.style.display = "none";
+    });
+}
+
+window.addEventListener("appinstalled", function () {
+    const banner = document.getElementById("installBanner");
+    if (banner) banner.style.display = "none";
+});
+
 loadCityOptions();
 loadTrending();
 loadItemSuggestions();
 renderHomeFeed();
+
+// ---- PWA: register service worker so browser offers "Add to Home Screen" ----
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/sw.js").catch(function (err) {
+            console.error("Service worker registration failed:", err);
+        });
+    });
+}
 </script>
 
 <script>
