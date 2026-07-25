@@ -104,6 +104,54 @@ try {
 const FIRESTORE_ADMIN_COLLECTION = 'Document';
 
 // ============ AMIS PUNJAB COMMODITY ID MAP (REAL, VERIFIED) ============
+
+// ============ PWA: MANIFEST + SERVICE WORKER ============
+// Lets users "install" the app to their home screen straight from the
+// browser (Add to Home Screen), without needing the Play Store — tapping the
+// installed icon opens the app in its own window, feeling like a native app.
+const PWA_ICON_192 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAAFt0lEQVR4nO3cTWwUZQDG8dl+sNtCW/ohainVcgCtGtIIB0n4CjFwwR5sogc1QRMTL0pME0NMuGhiGowmxHgiCKiJB0nRQCKJEbCaoEEBTWhRaCm1jS2lW3b7tbtl1wNNoYLtDE/Xd96d/++6M9Pn8M9md2e7odqNrQ5wr/JMD4DdCAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICJIC0wOmfLRrzbZNS+flUulMJplMJ1Pp+GjqajQxcG2is2fkYnf8bHv04pV4JjMPf8KutVnll4DmUV4oFAnnR8L5pYsKl95ffPtDQ9eTbacHjhzvPfFzfzKVNrXwdnatvVMOBjSLirIFjZtrGjfXDEYTBw937W+9dD2eMj3qP1mxNqCvgarKw29uf+TkZ0+/2FgXCpleMxc/rw1oQDeVly54d8eqAy1rKxeHTW+Zmz/XBjqgmzasWfLVxxseql5oeogrfltLQI7jOMseLP5yz7rqJUWmh7jiq7UENGVJZWTfe08VhfNND3HFP2sJ6JZHl5c2v1JveoVbPllLQDO83LR8ZV2p6RVu+WEtAc2QFwq98dJK0yvc8sNaKz9IfOv9M18c7b7rQwuLC8oWFa6sK139RGXTltoHqiJeL751fXVVeXgwmpBnTrFrrVe59gw0OjbZNzB+/Kf+3XvPr33u2K49v40nbni6Qn5eaNummizN+xe71t5VrgV0uxvpzIHWzud3/DA6PunpxHWr78vSpFnYtXZaLgd009mO6NsfnvN0yurHK7M0Zk52rXWCEJDjOIe/7WnvjLk/vqyksKrc2O0Cu9YGIqBMxjnW1ufplFpz9wrsWhuIgBzHOdMe9XT84pIFWVrihkVrgxLQ4JC3N7rFEZN3CSxaG5SA/PY1mtlZtDYoAVV6fJk5NuHt85j5ZdHaoAT0ZH2Fp+OH48ksLXHDorWBCCgvFNq6vtrTKVf6RrM0Zk6WrTX1h/9Pz25ZtuLhEvfHD8eTBu8u2bU29wNqqK94Z8cqT6ec/n0oS2PmZNdax9K78S4V5IdeaKzb+epjEY/f3Gv7ZSBLk2Zh19ppuRbQwqKCspLCFXWla+71CxI30pkjx3uzse1Odq29KysDamluaGluyNLFv/m+b35fUti11qvcfw3kSTqT2fPpBdMr3PLDWgKa4ZNDnR1e7oSb5Ye1BHTLha7Y7r3nTa9wyydrCWjKYDSxfecpr98oNcU/awnIcRynb2C86fW23v4x00Nc8dVaAnJ+/PXqM6+d7PprxPQQV/y21sq38fPlejz1wf72g61daf//Ephf1wY0oGvDic+/vrzv0KVozORdd5f8vDZYAUVjybbTA0dP9H136m/f/mjcNCvW5mBAmYyTmkwnU+nYSGowmui/NtHVM/Jnd+xcx/Afl2N+evp3HNvW3snKgGb5Z2EfsmutV7wLg4SAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBIQrUbW01vgMV4BoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAIPkH/7MjlaTaSRoAAAAASUVORK5CYII=";
+const PWA_ICON_512 = "data:image/png;base64,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hBIAgFACABBKAABCCQBAKAEACCUAAKEEACCUAACEEgCAUAIAEEoAAEIJAEAoAQAIJQAAoQQAIJQAAIQSAIBQAgAQSgAAQgkAQCgBAAglAAChBAAglAAAhBIAgFACABBKAABCCQBAKAEACCUAAKEEACCUAACEEgCAUAIAEEoAAEIJAEAoAQAIJQAAoQQAIJQAAIQSAIBQAgAQSgAAQgkAQCgBAAglAAChBAAglAAAhBIAgFACABBKAABCCQBAKAEACCUAAKEEACCUAACEEgCAUAIAEEoAAEIJAEAoAQAIJQAAoQQAIJQAAIQSAIBQAgAQSgAAQgkAQCgBAAglAAChBAAglAAAhBIAgFACABBKAABCCQBAKAEACCUAAKEEACCUAACEEgCAUAIAEEoAAEIJAEAoAQAIJQAAoQQAIJQAAIQSAIBQAgAQSgAAQgkAQCgBAAglAAChBAAglAAAhBIAgFACABBKAABCCQBAKAEACCUAAKEEACCUAACEEgCAUAIAEEoAAEIJAEAoAQAIJQAAoQQAIJQAAIQSAIBQAgAQSgAAQgkAQCgBAAglAAChBAAglAAAhBIAgFACABBKAABCCQBAKAEACCUAAKEEACCUAACEEgCAUAIAEEoAAEIJAEAoAQAIJQAAoQQAIJQAAIQSAIBQAgAQSgAAQgkAQCgBAAglAAChBAAglAAAhBIAgFACABBKAABCCQBAKAEACCUAAKEEACCUAACEEgCAUAIAEEoAAEIJAEAoAQAIJQAAoQQAIJQAAIQSAIBQAgAQSgAAQgkAQCgBAAglAAChBAAglAAAhBIAgFACABDqvwFTDFPC4lg+1gAAAABJRU5ErkJggg==";
+
+const PWA_MANIFEST = {
+    name: "Punjab Price App",
+    short_name: "Punjab Price",
+    description: "Punjab ki mandiyon ki live prices — Atta, Chini, sabziyan, phal aur bohot kuch.",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#f5f7fb",
+    theme_color: "#1e40af",
+    orientation: "portrait",
+    icons: [
+        { src: PWA_ICON_192, sizes: "192x192", type: "image/png", purpose: "any maskable" },
+        { src: PWA_ICON_512, sizes: "512x512", type: "image/png", purpose: "any maskable" }
+    ]
+};
+
+const PWA_SERVICE_WORKER = `
+const CACHE_NAME = "punjab-price-v1";
+self.addEventListener("install", (event) => {
+    self.skipWaiting();
+});
+self.addEventListener("activate", (event) => {
+    event.waitUntil(self.clients.claim());
+});
+// Network-first for everything: always try live data first (prices change
+// often), only falling back to cache if the network is genuinely unreachable
+// (offline) — this avoids ever showing stale prices when online.
+self.addEventListener("fetch", (event) => {
+    if (event.request.method !== "GET") return;
+    event.respondWith(
+        fetch(event.request)
+            .then((response) => {
+                const clone = response.clone();
+                caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+                return response;
+            })
+            .catch(() => caches.match(event.request))
+    );
+});
+`;
+
 const AMIS_COMMODITY_MAP = {
     // UPDATE: "atta" is mapped to AMIS's "Wheat" commodity (id 1) again.
     // Earlier this was removed because Wheat is technically raw grain, not
@@ -1506,6 +1554,26 @@ function handleRequest(req, res) {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(html);
         });
+        return;
+    }
+
+    // ============ PWA: MANIFEST + SERVICE WORKER ============
+    if (pathname === '/manifest.json' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/manifest+json' });
+        res.end(JSON.stringify(PWA_MANIFEST));
+        return;
+    }
+
+    if (pathname === '/icon-192.png' && req.method === 'GET') {
+        const base64Data = PWA_ICON_192.replace('data:image/png;base64,', '');
+        res.writeHead(200, { 'Content-Type': 'image/png' });
+        res.end(Buffer.from(base64Data, 'base64'));
+        return;
+    }
+
+    if (pathname === '/sw.js' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/javascript' });
+        res.end(PWA_SERVICE_WORKER);
         return;
     }
 
