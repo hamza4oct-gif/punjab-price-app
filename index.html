@@ -828,6 +828,27 @@ async function loadItemSuggestions() {
     }
 }
 
+// Mandi (wholesale) price + typical shopkeeper margin = estimated retail/shop
+// price. 18% is based on the user's own real-world observation (Aloo: mandi
+// Rs 110 vs their actual shop Rs 130 ≈ +18%), which also matches the
+// commonly-cited 10-20% markup range for fresh produce/staples in Pakistan
+// (covers transport, spoilage/wastage, and the shopkeeper's own margin).
+const RETAIL_MARKUP_PERCENT = 18;
+
+function toggleRetailEstimate(wholesalePrice) {
+    const box = document.getElementById("retailEstimateBox");
+    if (!box) return;
+    if (box.innerHTML.trim() !== "") {
+        box.innerHTML = ""; // tapping again hides it
+        return;
+    }
+    const estimated = Math.round(wholesalePrice * (1 + RETAIL_MARKUP_PERCENT / 100));
+    box.innerHTML =
+        "🏪 <b>تخمینی دکان ریٹ:</b> Rs ~" + estimated +
+        " <span style=\"color:#888; font-size:12px;\">(منڈی ریٹ + " + RETAIL_MARKUP_PERCENT + "% تخمینی مارجن)</span>" +
+        "<br><span style=\"color:#888; font-size:11.5px;\">یہ صرف اندازہ ہے، اصل دکان کا ریٹ مختلف ہو سکتا ہے۔</span>";
+}
+
 function shareOnWhatsApp(itemName, price, shop) {
     const text = "🛍️ " + itemName + "\n💰 قیمت: Rs " + price + "\n🏪 " + shop +
         "\n\nPunjab Price App سے دیکھیں: " + window.location.origin;
@@ -1125,9 +1146,11 @@ async function startSearch() {
             result.innerHTML =
                 "<div style=\"text-align: right; direction: rtl;\">" +
                 "🛍️ <b>پروڈکٹ:</b> " + escapeHtml(item.name || input) + "<br>" +
-                "💰 <b>قیمت:</b> Rs " + escapeHtml(String(item.price)) + trendHtml + "<br>" +
+                "💰 <b>منڈی ریٹ (ہول سیل):</b> Rs " + escapeHtml(String(item.price)) + trendHtml + "<br>" +
                 "🏪 <b>دکان/مارکیٹ:</b> " + escapeHtml(item.shop || "—") + " " + (item.verified ? "✅" : "") +
                 "<div id=\"aiPredictionBox\" style=\"margin-top:10px; font-size:13px; color:#666;\"></div>" +
+                "<button type=\"button\" onclick=\"toggleRetailEstimate(" + item.price + ")\" style=\"margin-top:12px; background:#9333ea;\">🏪 دکان کا تخمینی ریٹ دیکھیں</button>" +
+                "<div id=\"retailEstimateBox\" style=\"margin-top:8px; font-size:14px; text-align:right; direction:rtl;\"></div>" +
                 "<button type=\"button\" onclick=\"compareCities('" + escapeHtml(input.replace(/'/g, "")) + "')\" style=\"margin-top:12px; background:#0891b2;\">🏙️ Sab Shehron Mein Compare Karein</button>" +
                 "<div id=\"cityCompareBox\" style=\"margin-top:10px; font-size:14px; text-align:right; direction:rtl;\"></div>" +
                 "<button type=\"button\" onclick=\"shareOnWhatsApp('" + escapeHtml(String(item.name || input)) + "', '" + escapeHtml(String(item.price)) + "', '" + escapeHtml(String(item.shop || "Punjab Mandi")) + "')\" style=\"margin-top:10px; background:#25D366; display:flex; align-items:center; justify-content:center; gap:8px;\">📤 WhatsApp پر شیئر کریں</button>" +
