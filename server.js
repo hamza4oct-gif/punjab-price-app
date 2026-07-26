@@ -1609,6 +1609,15 @@ function handleRequest(req, res) {
         return;
     }
 
+    // ============ PUBLIC USAGE COUNTER (for home page social-proof display) ============
+    if (pathname === '/api/view-count' && req.method === 'GET') {
+        const db = readDB();
+        const totalSearches = (db.analytics && db.analytics.totals && db.analytics.totals.totalSearches) || 0;
+        res.writeHead(200);
+        res.end(JSON.stringify({ success: true, totalSearches }));
+        return;
+    }
+
     // ============ CITIES/MANDIS LIST (for city-picker dropdown) ============
     if (pathname === '/api/cities' && req.method === 'GET') {
         const cities = Object.keys(MARKET_ID_MAP).map(key => ({
