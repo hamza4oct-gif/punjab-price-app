@@ -473,6 +473,7 @@ body { margin: 0; font-family: Arial, sans-serif; }
 
     <div class="container">
         <h2>Search Product Price</h2>
+        <div id="viewCountBadge" style="font-size:13px; color:#64748b; margin-top:-8px; margin-bottom:8px;"></div>
         <div class="search-bar-wrap">
             <span class="search-bar-icon">🔍</span>
             <input type="text" id="inputBox" placeholder="یہاں لکھیں، مثلاً sugar, flour" dir="auto" list="itemSuggestions" autocomplete="off">
@@ -951,6 +952,20 @@ function searchFromFeed(searchKey) {
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+async function loadViewCount() {
+    const badge = document.getElementById("viewCountBadge");
+    if (!badge) return;
+    try {
+        const response = await fetch("/api/view-count");
+        const json = await response.json();
+        if (json.success && json.totalSearches > 0) {
+            badge.textContent = "📊 اب تک " + json.totalSearches.toLocaleString() + " بار تلاش ہو چکی ہے";
+        }
+    } catch (err) {
+        console.error("View count load error:", err);
+    }
+}
+
 async function loadTrending() {
     const trendingCard = document.getElementById("trendingCard");
     const trendingList = document.getElementById("trendingList");
@@ -1364,6 +1379,7 @@ window.addEventListener("appinstalled", function () {
 });
 
 loadCityOptions();
+loadViewCount();
 loadTrending();
 loadItemSuggestions();
 renderHomeFeed();
