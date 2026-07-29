@@ -1007,6 +1007,7 @@ async function loadCityOptions() {
 function startChatVoiceInput() {
     const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
     const micBtn = document.getElementById("chatMicBtn");
+    const chatInput = document.getElementById("chatInput");
 
     if (!SpeechRecognitionApi) {
         alert("معذرت، یہ براؤزر آواز سے لکھنے کو سپورٹ نہیں کرتا۔ براہ کرم Chrome استعمال کریں۔");
@@ -1015,7 +1016,7 @@ function startChatVoiceInput() {
 
     const recognition = new SpeechRecognitionApi();
     recognition.lang = "ur-PK";
-    recognition.interimResults = false;
+    recognition.interimResults = true; // show live text as the person speaks, WhatsApp-style
     recognition.maxAlternatives = 1;
 
     if (micBtn) {
@@ -1025,12 +1026,14 @@ function startChatVoiceInput() {
     }
 
     recognition.onresult = function (event) {
-        const transcript = event.results[0][0].transcript;
-        const chatInput = document.getElementById("chatInput");
-        if (chatInput) {
-            chatInput.value = transcript;
-            sendChatMessage();
+        let transcript = "";
+        let isFinal = false;
+        for (let i = 0; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+            if (event.results[i].isFinal) isFinal = true;
         }
+        if (chatInput) chatInput.value = transcript;
+        if (isFinal) sendChatMessage();
     };
 
     recognition.onerror = function (event) {
@@ -1071,6 +1074,7 @@ document.addEventListener("DOMContentLoaded", function () {
 function startVoiceSearch() {
     const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
     const micBtn = document.getElementById("micBtn");
+    const inputBox = document.getElementById("inputBox");
 
     if (!SpeechRecognitionApi) {
         alert("معذرت، یہ براؤزر آواز سے تلاش کو سپورٹ نہیں کرتا۔ براہ کرم Chrome استعمال کریں۔");
@@ -1079,7 +1083,7 @@ function startVoiceSearch() {
 
     const recognition = new SpeechRecognitionApi();
     recognition.lang = "ur-PK";
-    recognition.interimResults = false;
+    recognition.interimResults = true; // show live text as the person speaks, WhatsApp-style
     recognition.maxAlternatives = 1;
 
     if (micBtn) {
@@ -1088,12 +1092,14 @@ function startVoiceSearch() {
     }
 
     recognition.onresult = function (event) {
-        const transcript = event.results[0][0].transcript;
-        const inputBox = document.getElementById("inputBox");
-        if (inputBox) {
-            inputBox.value = transcript;
-            startSearch();
+        let transcript = "";
+        let isFinal = false;
+        for (let i = 0; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+            if (event.results[i].isFinal) isFinal = true;
         }
+        if (inputBox) inputBox.value = transcript;
+        if (isFinal) startSearch();
     };
 
     recognition.onerror = function (event) {
@@ -2110,6 +2116,39 @@ function renderChatMessages() {
 // text-to-speech (no API, no cost). Tapping the same button again while it's
 // speaking stops it — tapping a different message's button switches to that one.
 let currentSpeakBtn = null;
+let cachedVoicesList = [];
+
+function refreshVoicesList() {
+    if ("speechSynthesis" in window) {
+        cachedVoicesList = window.speechSynthesis.getVoices();
+    }
+}
+if ("speechSynthesis" in window) {
+    refreshVoicesList();
+    window.speechSynthesis.onvoiceschanged = refreshVoicesList;
+}
+
+// Picks the most natural-sounding voice this browser/device has available.
+// Priority: Urdu > Arabic (closest script/phonetics) > Hindi, and within
+// those, a network "Google" voice (far more natural) over the default local
+// robotic engine most phones fall back to.
+function pickBestUrduVoice() {
+    const voices = cachedVoicesList.length ? cachedVoicesList : window.speechSynthesis.getVoices();
+    if (!voices.length) return null;
+    function score(v) {
+        let s = 0;
+        const lang = (v.lang || "").toLowerCase();
+        const name = (v.name || "").toLowerCase();
+        if (lang.startsWith("ur")) s += 100;
+        else if (lang.startsWith("ar")) s += 60;
+        else if (lang.startsWith("hi")) s += 40;
+        if (name.includes("google")) s += 30;
+        if (!v.localService) s += 20;
+        if (name.includes("female") || name.includes("woman")) s += 5;
+        return s;
+    }
+    return voices.slice().sort((a, b) => score(b) - score(a))[0];
+}
 
 function speakChatMessage(index, btnEl) {
     const msg = chatHistory[index];
@@ -2131,11 +2170,15 @@ function speakChatMessage(index, btnEl) {
     }
 
     const utterance = new SpeechSynthesisUtterance(msg.content);
-    utterance.lang = "ur-PK";
-    utterance.rate = 0.95;
-    const voices = window.speechSynthesis.getVoices();
-    const urduVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith("ur"));
-    if (urduVoice) utterance.voice = urduVoice;
+    const bestVoice = pickBestUrduVoice();
+    if (bestVoice) {
+        utterance.voice = bestVoice;
+        utterance.lang = bestVoice.lang;
+    } else {
+        utterance.lang = "ur-PK";
+    }
+    utterance.rate = 0.93;   // slightly slower than default = easier to follow, less robotic
+    utterance.pitch = 1.03;  // a touch warmer than flat default pitch
 
     if (btnEl) btnEl.textContent = "⏸️ روکیں";
     currentSpeakBtn = btnEl;
