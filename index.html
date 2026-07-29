@@ -2090,15 +2090,66 @@ function renderChatMessages() {
             "<div style=\"margin-top:10px; font-size:15px;\">خوش آمدید! کچھ بھی پوچھیں</div></div>";
         return;
     }
-    box.innerHTML = chatHistory.map((m) => {
+    box.innerHTML = chatHistory.map((m, i) => {
         const isUser = m.role === "user";
+        const speakBtn = !isUser
+            ? "<div style=\"margin-top:7px; text-align:left;\">" +
+              "<button type=\"button\" onclick=\"speakChatMessage(" + i + ", this)\" style=\"background:#eef2ff; border:none; color:#1e40af; border-radius:14px; padding:4px 11px; font-size:12px; cursor:pointer; margin:0; width:auto;\">🔊 سنیں</button>" +
+              "</div>"
+            : "";
         const bubble = "<div style=\"max-width:78%; padding:11px 15px; border-radius:" + (isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px") + "; background:" + (isUser ? "linear-gradient(135deg, #1e40af, #3b82f6)" : "white") + "; color:" + (isUser ? "white" : "#1f2937") + "; box-shadow:0 1px 4px rgba(0,0,0,0.1); border:" + (isUser ? "none" : "1px solid rgba(0,0,0,0.05)") + "; text-align:right; direction:rtl; white-space:pre-wrap; font-size:14.5px; line-height:1.6;\">" +
-            escapeHtml(m.content) + "</div>";
+            escapeHtml(m.content) + speakBtn + "</div>";
         const avatar = !isUser ? "<div style=\"width:28px; height:28px; border-radius:50%; background:#eef2ff; display:flex; align-items:center; justify-content:center; font-size:15px; margin-left:6px; flex-shrink:0;\">🤖</div>" : "";
         return "<div style=\"display:flex; justify-content:" + (isUser ? "flex-end" : "flex-start") + "; align-items:flex-end; margin-bottom:12px;\">" +
             (isUser ? bubble : avatar + bubble) + "</div>";
     }).join("");
     box.scrollTop = box.scrollHeight;
+}
+
+// ---- Voice OUTPUT: read a chat reply aloud using the browser's own free
+// text-to-speech (no API, no cost). Tapping the same button again while it's
+// speaking stops it — tapping a different message's button switches to that one.
+let currentSpeakBtn = null;
+
+function speakChatMessage(index, btnEl) {
+    const msg = chatHistory[index];
+    if (!msg) return;
+
+    if (!("speechSynthesis" in window)) {
+        alert("معذرت، یہ براؤزر آواز میں سننے کو سپورٹ نہیں کرتا۔");
+        return;
+    }
+
+    const wasSpeakingThisOne = currentSpeakBtn === btnEl && window.speechSynthesis.speaking;
+    window.speechSynthesis.cancel(); // always stop whatever was playing first
+    if (currentSpeakBtn) {
+        currentSpeakBtn.textContent = "🔊 سنیں";
+    }
+    if (wasSpeakingThisOne) {
+        currentSpeakBtn = null;
+        return; // tapping the same button again just stops it
+    }
+
+    const utterance = new SpeechSynthesisUtterance(msg.content);
+    utterance.lang = "ur-PK";
+    utterance.rate = 0.95;
+    const voices = window.speechSynthesis.getVoices();
+    const urduVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith("ur"));
+    if (urduVoice) utterance.voice = urduVoice;
+
+    if (btnEl) btnEl.textContent = "⏸️ روکیں";
+    currentSpeakBtn = btnEl;
+
+    utterance.onend = function () {
+        if (btnEl) btnEl.textContent = "🔊 سنیں";
+        if (currentSpeakBtn === btnEl) currentSpeakBtn = null;
+    };
+    utterance.onerror = function () {
+        if (btnEl) btnEl.textContent = "🔊 سنیں";
+        if (currentSpeakBtn === btnEl) currentSpeakBtn = null;
+    };
+
+    window.speechSynthesis.speak(utterance);
 }
 
 function addBotMessage(text) {
