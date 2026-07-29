@@ -2079,7 +2079,7 @@ function handleRequest(req, res) {
                     const systemPrompt = `Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. ${namePart} Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain.${liveDataNote} Agar koi kisi aisi cheez ki price poochhe jiska data upar nahi diya gaya, unhe app ke Search feature ka istemal karne ka mashwara dein — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware) mein poori tarah madad karein.`;
 
                     const response = await axios.post(
-                        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+                        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
                         {
                             contents: geminiContents,
                             systemInstruction: { parts: [{ text: systemPrompt }] },
