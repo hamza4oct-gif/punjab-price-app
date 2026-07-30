@@ -1112,6 +1112,11 @@ async function searchWebFree(query) {
             const snippet = $(el).find('.result__snippet').text().trim();
             if (title || snippet) results.push({ title, snippet });
         });
+        if (results.length > 0) {
+            console.log(`✅ Free web search SUCCESS for "${query}" — ${results.length} results found`);
+        } else {
+            console.log(`⚠️ Free web search returned ZERO results for "${query}" (page loaded but no results parsed — DuckDuckGo layout may have changed)`);
+        }
         return results;
     } catch (e) {
         console.error('⚠️ Free web search (chat) failed, chat will continue without it:', e.message);
@@ -2047,6 +2052,31 @@ function handleRequest(req, res) {
     if (pathname === '/api/sources' && req.method === 'GET') {
         res.writeHead(200);
         res.end(JSON.stringify({ success: true, data: Array.from(sourceRegistry.values()) }));
+        return;
+    }
+
+    // ============ DIAGNOSTIC: TEST FREE WEB SEARCH DIRECTLY (no Gemini, no chat) ============
+    // Isay seedha browser mein kholein, e.g.:
+    //   https://<aapki-app-url>/api/test-web-search?q=aaj%20ka%20mausam%20lahore
+    // Isse aap turant dekh sakte hain ke DuckDuckGo search kaam kar rahi hai ya nahi,
+    // Gemini ya chat quota ka koi lena dena nahi is test se.
+    if (pathname === '/api/test-web-search' && req.method === 'GET') {
+        const testQuery = sanitizeInput(query.q || 'test');
+        (async () => {
+            const results = await withTimeout(searchWebFree(testQuery), 6000, []);
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                success: true,
+                query: testQuery,
+                resultsFound: results.length,
+                results
+            }));
+        })().catch(e => {
+            if (!res.headersSent) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ success: false, message: e.message }));
+            }
+        });
         return;
     }
 
