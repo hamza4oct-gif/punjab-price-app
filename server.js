@@ -2077,9 +2077,8 @@ function handleRequest(req, res) {
                     }
 
                     // Aaj ki date/din khud yahin bata dete hain (Pakistan/Asia-Karachi
-                    // waqt ke mutabiq) taake Gemini ko web/live search ke bina bhi
-                    // sahi, aaj ki date pata ho — google_search tool ke sath mil kar
-                    // ye double-check ka kaam karta hai.
+                    // waqt ke mutabiq) taake Gemini ko sahi, aaj ki date pata ho —
+                    // ye local calculation hai, koi extra API call/quota istemal nahi karti.
                     const todayReadable = new Date().toLocaleDateString('en-PK', {
                         timeZone: 'Asia/Karachi',
                         weekday: 'long',
@@ -2088,15 +2087,14 @@ function handleRequest(req, res) {
                         day: 'numeric'
                     });
 
-                    const systemPrompt = `Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. ${namePart} Aaj ki tareekh ${todayReadable} hai (Pakistan waqt ke mutabiq) — agar koi date/din poochhe to yehi sahi jawab dein. Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain.${liveDataNote} Aapke paas Google Search tool mojood hai — agar koi cheez aapko pata na ho ya current/live maloomat chahiye ho (jaise mausam, khabaren, aaj ki koi update), to search tool istemal karke sahi jawab dein, guess na karein. Agar koi kisi aisi cheez ki price poochhe jiska data upar nahi diya gaya, unhe app ke Search feature ka istemal karne ka mashwara dein — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware) mein poori tarah madad karein.`;
+                    const systemPrompt = `Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. ${namePart} Aaj ki tareekh ${todayReadable} hai (Pakistan waqt ke mutabiq) — agar koi date/din poochhe to yehi sahi jawab dein. Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain.${liveDataNote} Agar koi kisi aisi cheez ki price poochhe jiska data upar nahi diya gaya, unhe app ke Search feature ka istemal karne ka mashwara dein — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware) mein poori tarah madad karein.`;
 
                     const response = await axios.post(
                         'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
                         {
                             contents: geminiContents,
                             systemInstruction: { parts: [{ text: systemPrompt }] },
-                            generationConfig: { maxOutputTokens: 500 },
-                            tools: [{ google_search: {} }]
+                            generationConfig: { maxOutputTokens: 500 }
                         },
                         {
                             headers: {
