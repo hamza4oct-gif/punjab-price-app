@@ -1088,6 +1088,37 @@ async function fetchCityPrice(canonicalKey, cityKey) {
     }
 }
 
+// ============ FREE WEB SEARCH FOR AI CHAT (NO API KEY, NO COST) ============
+// Uses DuckDuckGo's HTML endpoint (same scraping approach as AMIS above) so the
+// chatbot can answer current-events/weather/date-type questions WITHOUT using
+// Gemini's paid "google_search" grounding tool — this keeps chat requests
+// counting as normal (cheap) Gemini calls against the free quota, while still
+// giving Gemini real, current context to answer from.
+async function searchWebFree(query) {
+    if (!query || !query.trim()) return [];
+    try {
+        const response = await axios.get('https://html.duckduckgo.com/html/', {
+            params: { q: query },
+            timeout: 4000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36'
+            }
+        });
+        const $ = cheerio.load(response.data);
+        const results = [];
+        $('.result__body').each((i, el) => {
+            if (results.length >= 3) return false; // top 3 results is enough context
+            const title = $(el).find('.result__title').text().trim();
+            const snippet = $(el).find('.result__snippet').text().trim();
+            if (title || snippet) results.push({ title, snippet });
+        });
+        return results;
+    } catch (e) {
+        console.error('⚠️ Free web search (chat) failed, chat will continue without it:', e.message);
+        return [];
+    }
+}
+
 // ============ DOES THIS ITEM HAVE A LIVE INTERNET SOURCE? ============
 // Used to decide search priority: if an item has a real trusted source mapped
 // (AMIS/Naheed), we should trust a LIVE price over whatever is sitting in
@@ -2087,7 +2118,28 @@ function handleRequest(req, res) {
                         day: 'numeric'
                     });
 
-                    const systemPrompt = `Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. ${namePart} Aaj ki tareekh ${todayReadable} hai (Pakistan waqt ke mutabiq) — agar koi date/din poochhe to yehi sahi jawab dein. Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain.${liveDataNote} Agar koi kisi aisi cheez ki price poochhe jiska data upar nahi diya gaya, unhe app ke Search feature ka istemal karne ka mashwara dein — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware) mein poori tarah madad karein.`;
+                    // FREE internet search (DuckDuckGo scrape, no API key/cost) so the
+                    // bot can answer current-events/weather-type questions. Strict
+                    // timeout + try/catch: agar ye fail/slow ho to chat bilkul pehle
+                    // jaisi hi chalti rahegi, sirf bina live-web-context ke.
+                    let webSearchNote = '';
+                    try {
+                        const searchResults = await withTimeout(
+                            searchWebFree(sanitizeInput(String(message))),
+                            4500,
+                            []
+                        );
+                        if (searchResults && searchResults.length > 0) {
+                            const compiled = searchResults
+                                .map(r => `- ${r.title}: ${r.snippet}`)
+                                .join('\n');
+                            webSearchNote = `\n\n[INTERNET SEARCH RESULTS — sirf tab istemal karein agar sawal se related hon, warna ignore kar dein]:\n${compiled}`;
+                        }
+                    } catch (e) {
+                        console.error('⚠️ Chat web-search note failed (chat continues normally):', e.message);
+                    }
+
+                    const systemPrompt = `Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. ${namePart} Aaj ki tareekh ${todayReadable} hai (Pakistan waqt ke mutabiq) — agar koi date/din poochhe to yehi sahi jawab dein. Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain.${liveDataNote}${webSearchNote} Agar koi kisi aisi cheez ki price poochhe jiska data upar nahi diya gaya, unhe app ke Search feature ka istemal karne ka mashwara dein — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware, mausam, khabaren) mein poori tarah madad karein, upar diye gaye internet results ko context ke tor par istemal karte hue.`;
 
                     const response = await axios.post(
                         'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
