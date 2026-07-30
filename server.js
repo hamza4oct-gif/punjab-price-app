@@ -109,7 +109,7 @@ const FIRESTORE_ADMIN_COLLECTION = 'Document';
 // Lets users "install" the app to their home screen straight from the
 // browser (Add to Home Screen), without needing the Play Store — tapping the
 // installed icon opens the app in its own window, feeling like a native app.
-const PWA_ICON_192 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAAFt0lEQVR4nO3cTWwUZQDG8dl+sNtCW/ohainVcgCtGtIIB0n4CjFwwR5sogc1QRMTL0pME0NMuGhiGowmxHgiCKiJB0nRQCKJEbCaoEEBTWhRaCm1jS2lW3b7tbtl1wNNoYLtDE/Xd96d/++6M9Pn8M9If5Tc3fp/OTGZS4Bi1jH9UzE1KM+9BJIEgKChIAgISBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAIPkH/7MjlaTaSRoAAAAASUVORK5CYII=";
+const PWA_ICON_192 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAAFt0lEQVR4nO3cTWwUZQDG8dl+sNtCW/ohainVcgCtGtIIB0n4CjFwwR5sogc1QRMTL0pME0NMuGhiGowmxHgiCKiJB0nRQCKJEbCaoEEBTWhRaCm1jS2lW3b7tbtl1wNNoYLtDE/Xd96d/++6M9Pn8M9If5Tc3fp/OTGZS4Bi1jH9UzE1KM+9BJIEgKChIAgISBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAIPkH/7MjlaTaSRoAAAAASUVORK5CYII=";
 const PWA_ICON_512 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAIAAAB7GkOtAAAQV0lEQVR4nO3df6zddX3H8furvbc/aIGWX6W0pYAW5GdgIBsCA9TBQJxZdAwWZswMyWaGbmRhm4TIZGKMkZAoQow=";
 
 const PWA_MANIFEST = {
@@ -2076,14 +2076,27 @@ function handleRequest(req, res) {
                         console.error('⚠️ Chat live-data lookup failed:', e.message);
                     }
 
-                    const systemPrompt = `Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. ${namePart} Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain.${liveDataNote} Agar koi kisi aisi cheez ki price poochhe jiska data upar nahi diya gaya, unhe app ke Search feature ka istemal karne ka mashwara dein — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware) mein poori tarah madad karein.`;
+                    // Aaj ki date/din khud yahin bata dete hain (Pakistan/Asia-Karachi
+                    // waqt ke mutabiq) taake Gemini ko web/live search ke bina bhi
+                    // sahi, aaj ki date pata ho — google_search tool ke sath mil kar
+                    // ye double-check ka kaam karta hai.
+                    const todayReadable = new Date().toLocaleDateString('en-PK', {
+                        timeZone: 'Asia/Karachi',
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+
+                    const systemPrompt = `Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. ${namePart} Aaj ki tareekh ${todayReadable} hai (Pakistan waqt ke mutabiq) — agar koi date/din poochhe to yehi sahi jawab dein. Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain.${liveDataNote} Aapke paas Google Search tool mojood hai — agar koi cheez aapko pata na ho ya current/live maloomat chahiye ho (jaise mausam, khabaren, aaj ki koi update), to search tool istemal karke sahi jawab dein, guess na karein. Agar koi kisi aisi cheez ki price poochhe jiska data upar nahi diya gaya, unhe app ke Search feature ka istemal karne ka mashwara dein — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware) mein poori tarah madad karein.`;
 
                     const response = await axios.post(
                         'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
                         {
                             contents: geminiContents,
                             systemInstruction: { parts: [{ text: systemPrompt }] },
-                            generationConfig: { maxOutputTokens: 500 }
+                            generationConfig: { maxOutputTokens: 500 },
+                            tools: [{ google_search: {} }]
                         },
                         {
                             headers: {
