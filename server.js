@@ -1088,40 +1088,123 @@ async function fetchCityPrice(canonicalKey, cityKey) {
     }
 }
 
-// ============ FREE WEB SEARCH FOR AI CHAT (NO API KEY, NO COST) ============
-// Uses DuckDuckGo's HTML endpoint (same scraping approach as AMIS above) so the
-// chatbot can answer current-events/weather/date-type questions WITHOUT using
-// Gemini's paid "google_search" grounding tool — this keeps chat requests
-// counting as normal (cheap) Gemini calls against the free quota, while still
-// giving Gemini real, current context to answer from.
+// ============ FREE, RELIABLE WEATHER + LOCAL-TIME LOOKUP (NO API KEY, NO COST) ============
+// Open-Meteo is a public API BUILT for programmatic access (not scraping), so
+// it does NOT block cloud/datacenter IPs the way DuckDuckGo often does. This
+// gives 100% reliable answers for "mausam kaisa hai" / "kya waqt hai" type
+// questions without depending on fragile HTML scraping.
+async function getWeatherAndTime(cityName) {
+    try {
+        const geoRes = await axios.get('https://geocoding-api.open-meteo.com/v1/search', {
+            params: { name: cityName, count: 1, language: 'en', format: 'json' },
+            timeout: 4000
+        });
+        const place = geoRes.data && geoRes.data.results && geoRes.data.results[0];
+        if (!place) {
+            console.log(`⚠️ Weather lookup: city "${cityName}" not found in geocoding`);
+            return null;
+        }
+
+        const weatherRes = await axios.get('https://api.open-meteo.com/v1/forecast', {
+            params: {
+                latitude: place.latitude,
+                longitude: place.longitude,
+                current: 'temperature_2m,weather_code,wind_speed_10m',
+                timezone: 'auto'
+            },
+            timeout: 4000
+        });
+        const current = weatherRes.data && weatherRes.data.current;
+        if (!current) return null;
+
+        console.log(`✅ Weather/time SUCCESS for "${cityName}" (${place.name}, ${place.country})`);
+        return {
+            city: place.name,
+            country: place.country,
+            temperatureC: current.temperature_2m,
+            windSpeedKmh: current.wind_speed_10m,
+            localTime: current.time, // local time string, e.g. 2026-07-30T14:35
+            timezone: weatherRes.data.timezone
+        };
+    } catch (e) {
+        console.error(`⚠️ Weather/time lookup failed for "${cityName}":`, e.message);
+        return null;
+    }
+}
+
+// Known place names the user might ask about — reuses the same Punjab city
+// list already defined above (MARKET_ID_MAP) plus a few common extras.
+const KNOWN_PLACES = [...Object.keys(MARKET_ID_MAP), 'karachi', 'islamabad', 'peshawar', 'quetta', 'london', 'dubai', 'new york'];
+const WEATHER_TIME_KEYWORDS = ['mausam', 'weather', 'garmi', 'sardi', 'barish', 'waqt', 'time', 'ghanta', 'baje'];
+
+function detectWeatherOrTimeQuery(message) {
+    const lower = String(message).toLowerCase();
+    const hasKeyword = WEATHER_TIME_KEYWORDS.some(k => lower.includes(k));
+    if (!hasKeyword) return null;
+    const matchedCity = KNOWN_PLACES.find(city => lower.includes(city));
+    // Default to Lahore if a weather/time question is asked without a clear city —
+    // better than giving no answer at all for a Punjab-focused app.
+    return matchedCity || 'lahore';
+}
+
+// ============ FREE GENERAL WEB SEARCH FOR AI CHAT (NO API KEY, NO COST) ============
+// Tries DuckDuckGo's lightweight "lite" endpoint first (simpler HTML, less
+// likely to be blocked), then falls back to the full html.duckduckgo.com
+// endpoint. Used for general current-events questions the weather/time
+// lookup above doesn't cover. If both fail (cloud IPs are sometimes blocked
+// by DuckDuckGo), chat continues normally without this context — it never
+// breaks the chat.
 async function searchWebFree(query) {
     if (!query || !query.trim()) return [];
-    try {
-        const response = await axios.get('https://html.duckduckgo.com/html/', {
-            params: { q: query },
-            timeout: 4000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36'
+    const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36'
+    };
+
+    const attempts = [
+        { url: 'https://lite.duckduckgo.com/lite/', selector: 'a.result-link', snippetSelector: 'td.result-snippet' },
+        { url: 'https://html.duckduckgo.com/html/', selector: '.result__title', snippetSelector: '.result__snippet' }
+    ];
+
+    for (const attempt of attempts) {
+        try {
+            const response = await axios.get(attempt.url, {
+                params: { q: query },
+                timeout: 4000,
+                headers
+            });
+            const $ = cheerio.load(response.data);
+            const results = [];
+
+            if (attempt.selector === 'a.result-link') {
+                // lite.duckduckgo.com layout: titles and snippets are in separate rows
+                const titles = [];
+                $(attempt.selector).each((i, el) => { if (titles.length < 3) titles.push($(el).text().trim()); });
+                const snippets = [];
+                $(attempt.snippetSelector).each((i, el) => { if (snippets.length < 3) snippets.push($(el).text().trim()); });
+                for (let i = 0; i < Math.max(titles.length, snippets.length) && i < 3; i++) {
+                    if (titles[i] || snippets[i]) results.push({ title: titles[i] || '', snippet: snippets[i] || '' });
+                }
+            } else {
+                $('.result__body').each((i, el) => {
+                    if (results.length >= 3) return false;
+                    const title = $(el).find(attempt.selector).text().trim();
+                    const snippet = $(el).find(attempt.snippetSelector).text().trim();
+                    if (title || snippet) results.push({ title, snippet });
+                });
             }
-        });
-        const $ = cheerio.load(response.data);
-        const results = [];
-        $('.result__body').each((i, el) => {
-            if (results.length >= 3) return false; // top 3 results is enough context
-            const title = $(el).find('.result__title').text().trim();
-            const snippet = $(el).find('.result__snippet').text().trim();
-            if (title || snippet) results.push({ title, snippet });
-        });
-        if (results.length > 0) {
-            console.log(`✅ Free web search SUCCESS for "${query}" — ${results.length} results found`);
-        } else {
-            console.log(`⚠️ Free web search returned ZERO results for "${query}" (page loaded but no results parsed — DuckDuckGo layout may have changed)`);
+
+            if (results.length > 0) {
+                console.log(`✅ Free web search SUCCESS via ${attempt.url} for "${query}" — ${results.length} results`);
+                return results;
+            }
+            console.log(`⚠️ ${attempt.url} loaded but returned zero parsed results for "${query}", trying next fallback...`);
+        } catch (e) {
+            console.error(`⚠️ ${attempt.url} failed for "${query}":`, e.message);
         }
-        return results;
-    } catch (e) {
-        console.error('⚠️ Free web search (chat) failed, chat will continue without it:', e.message);
-        return [];
     }
+
+    console.log(`⚠️ All free web search methods failed for "${query}" — chat continues without live context`);
+    return [];
 }
 
 // ============ DOES THIS ITEM HAVE A LIVE INTERNET SOURCE? ============
@@ -2148,28 +2231,46 @@ function handleRequest(req, res) {
                         day: 'numeric'
                     });
 
-                    // FREE internet search (DuckDuckGo scrape, no API key/cost) so the
-                    // bot can answer current-events/weather-type questions. Strict
-                    // timeout + try/catch: agar ye fail/slow ho to chat bilkul pehle
-                    // jaisi hi chalti rahegi, sirf bina live-web-context ke.
-                    let webSearchNote = '';
+                    // RELIABLE weather/time lookup (Open-Meteo public API — never
+                    // blocked, unlike scraping). Checked first because it's the most
+                    // common thing people ask a "current info" bot for.
+                    let weatherTimeNote = '';
                     try {
-                        const searchResults = await withTimeout(
-                            searchWebFree(sanitizeInput(String(message))),
-                            4500,
-                            []
-                        );
-                        if (searchResults && searchResults.length > 0) {
-                            const compiled = searchResults
-                                .map(r => `- ${r.title}: ${r.snippet}`)
-                                .join('\n');
-                            webSearchNote = `\n\n[INTERNET SEARCH RESULTS — sirf tab istemal karein agar sawal se related hon, warna ignore kar dein]:\n${compiled}`;
+                        const placeGuess = detectWeatherOrTimeQuery(message);
+                        if (placeGuess) {
+                            const info = await withTimeout(getWeatherAndTime(placeGuess), 4500, null);
+                            if (info) {
+                                weatherTimeNote = `\n\n[LIVE WEATHER/TIME DATA — ${info.city}, ${info.country}]: Abhi ka waqt ${info.localTime} (${info.timezone}) hai. Temperature ${info.temperatureC}°C hai, hawa ki raftar ${info.windSpeedKmh} km/h hai. Ye asli, taaza data hai — isay seedha jawab mein istemal karein.`;
+                            }
                         }
                     } catch (e) {
-                        console.error('⚠️ Chat web-search note failed (chat continues normally):', e.message);
+                        console.error('⚠️ Chat weather/time lookup failed (chat continues normally):', e.message);
                     }
 
-                    const systemPrompt = `Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. ${namePart} Aaj ki tareekh ${todayReadable} hai (Pakistan waqt ke mutabiq) — agar koi date/din poochhe to yehi sahi jawab dein. Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain.${liveDataNote}${webSearchNote} Agar koi kisi aisi cheez ki price poochhe jiska data upar nahi diya gaya, unhe app ke Search feature ka istemal karne ka mashwara dein — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware, mausam, khabaren) mein poori tarah madad karein, upar diye gaye internet results ko context ke tor par istemal karte hue.`;
+                    // FREE general internet search (DuckDuckGo, no API key/cost) for
+                    // anything the weather/time lookup above didn't already cover.
+                    // Strict timeout + try/catch: agar ye fail/slow ho to chat bilkul
+                    // pehle jaisi hi chalti rahegi, sirf bina live-web-context ke.
+                    let webSearchNote = '';
+                    if (!weatherTimeNote) {
+                        try {
+                            const searchResults = await withTimeout(
+                                searchWebFree(sanitizeInput(String(message))),
+                                4500,
+                                []
+                            );
+                            if (searchResults && searchResults.length > 0) {
+                                const compiled = searchResults
+                                    .map(r => `- ${r.title}: ${r.snippet}`)
+                                    .join('\n');
+                                webSearchNote = `\n\n[INTERNET SEARCH RESULTS — sirf tab istemal karein agar sawal se related hon, warna ignore kar dein]:\n${compiled}`;
+                            }
+                        } catch (e) {
+                            console.error('⚠️ Chat web-search note failed (chat continues normally):', e.message);
+                        }
+                    }
+
+                    const systemPrompt = `Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. ${namePart} Aaj ki tareekh ${todayReadable} hai (Pakistan waqt ke mutabiq) — agar koi date/din poochhe to yehi sahi jawab dein. Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain.${liveDataNote}${weatherTimeNote}${webSearchNote} Agar koi kisi aisi cheez ki price poochhe jiska data upar nahi diya gaya, unhe app ke Search feature ka istemal karne ka mashwara dein — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware, mausam, khabaren) mein poori tarah madad karein, upar diye gaye internet results ko context ke tor par istemal karte hue.`;
 
                     const response = await axios.post(
                         'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
