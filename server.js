@@ -2163,6 +2163,31 @@ function handleRequest(req, res) {
         return;
     }
 
+    // ============ DIAGNOSTIC: TEST WEATHER/TIME LOOKUP DIRECTLY (no Gemini, no chat) ============
+    // Isay seedha browser mein kholein, e.g.:
+    //   https://<aapki-app-url>/api/test-weather?city=lahore
+    // Ye seedha Open-Meteo se baat karta hai, Gemini/chat ka koi lena dena nahi —
+    // isse pata chal jayega ke asal masla weather API mein hai ya chat wiring mein.
+    if (pathname === '/api/test-weather' && req.method === 'GET') {
+        const testCity = sanitizeInput(query.city || 'lahore');
+        (async () => {
+            const info = await withTimeout(getWeatherAndTime(testCity), 6000, null);
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                success: !!info,
+                city: testCity,
+                data: info,
+                message: info ? 'Weather API kaam kar rahi hai' : 'Weather API se data nahi mila — city geocoding fail hui ya API unreachable'
+            }));
+        })().catch(e => {
+            if (!res.headersSent) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ success: false, message: e.message }));
+            }
+        });
+        return;
+    }
+
     // ============ AI CHAT (GEMINI) ============
     if (pathname === '/api/chat' && req.method === 'POST') {
         const clientIp = req.socket.remoteAddress || 'unknown';
