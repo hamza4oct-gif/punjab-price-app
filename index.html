@@ -461,6 +461,184 @@ body { margin: 0; font-family: Arial, sans-serif; }
 #page-shopkeeper.active { display: block; }
 #page-admin.active { display: block; }
 #page-login.active { display: flex; }
+
+/* ================= CHAT: RECENT CHATS SIDEBAR (beautiful, matches app theme) ================= */
+#chatSidebarOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 2000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+#chatSidebarOverlay.open { opacity: 1; pointer-events: auto; }
+
+#chatSidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 82%;
+    max-width: 320px;
+    background: #f8fafc;
+    z-index: 2001;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: -8px 0 30px rgba(0,0,0,0.18);
+    display: flex;
+    flex-direction: column;
+}
+#chatSidebar.open { transform: translateX(0); }
+
+#chatSidebar .sidebar-header {
+    background: linear-gradient(135deg, #1e40af, #3b82f6);
+    color: white;
+    padding: 20px 18px 16px;
+    flex-shrink: 0;
+}
+#chatSidebar .sidebar-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+#chatSidebar .sidebar-title {
+    font-size: 17px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+#chatSidebar .sidebar-close-btn {
+    background: rgba(255,255,255,0.18);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+}
+#chatSidebar .sidebar-close-btn:active { transform: scale(0.9); }
+
+#chatSidebar .new-chat-btn {
+    margin-top: 14px;
+    width: 100%;
+    background: white;
+    color: #1e40af;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 14.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+    transition: transform 0.12s ease;
+}
+#chatSidebar .new-chat-btn:active { transform: scale(0.97); }
+
+#chatSidebar .sidebar-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 10px 20px;
+}
+#chatSidebar .sidebar-empty {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 13.5px;
+    margin-top: 40px;
+    padding: 0 20px;
+    line-height: 1.6;
+}
+#chatSidebar .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    margin-bottom: 4px;
+    transition: background 0.15s ease;
+    position: relative;
+}
+#chatSidebar .sidebar-item:hover { background: #eef2ff; }
+#chatSidebar .sidebar-item.active-session { background: #dbeafe; }
+#chatSidebar .sidebar-item-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #eef2ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+}
+#chatSidebar .sidebar-item.active-session .sidebar-item-icon { background: #1e40af; color: white; }
+#chatSidebar .sidebar-item-text {
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+    direction: rtl;
+}
+#chatSidebar .sidebar-item-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #1f2937;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#chatSidebar .sidebar-item-time {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+#chatSidebar .sidebar-item-delete {
+    background: transparent;
+    border: none;
+    color: #cbd5e1;
+    font-size: 15px;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+#chatSidebar .sidebar-item-delete:hover { background: #fee2e2; color: #dc2626; }
+
+#chatSidebarToggleBtn {
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: white;
+    font-size: 19px;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#chatSidebarToggleBtn:active { transform: scale(0.9); }
 </style>
 </head>
 <body>
@@ -726,7 +904,7 @@ body { margin: 0; font-family: Arial, sans-serif; }
     <div style="background:linear-gradient(135deg, #1e40af, #3b82f6); color:white; padding:16px; text-align:center; font-size:19px; font-weight:bold; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 10px rgba(30,64,175,0.25); z-index:2;">
       <button type="button" onclick="spaShowPage('home')" style="background:rgba(255,255,255,0.15); border:none; color:white; font-size:20px; cursor:pointer; padding:0; margin:0; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center;">←</button>
       <span>🤖 AI Chat Assistant</span>
-      <span style="width:36px;"></span>
+      <button type="button" id="chatSidebarToggleBtn" onclick="openChatSidebar()" title="Recent Chats">☰</button>
     </div>
     <div id="chatMessages" style="flex:1; overflow-y:auto; padding:16px;"></div>
     <div style="display:flex; align-items:center; gap:8px; padding:12px; background:white; border-top:1px solid #eee; box-shadow:0 -2px 10px rgba(0,0,0,0.04);">
@@ -736,6 +914,20 @@ body { margin: 0; font-family: Arial, sans-serif; }
         style="background:#eef2ff; color:#1e40af; border:none; border-radius:50%; width:44px; height:44px; min-width:44px; font-size:18px; cursor:pointer; margin:0; padding:0; display:flex; align-items:center; justify-content:center;">🎙️</button>
       <button type="button" onclick="sendChatMessage()"
         style="background:linear-gradient(135deg, #1e40af, #3b82f6); color:white; border:none; border-radius:50%; width:44px; height:44px; min-width:44px; font-size:18px; cursor:pointer; margin:0; padding:0; box-shadow:0 2px 8px rgba(30,64,175,0.3);">➤</button>
+    </div>
+  </div>
+
+  <div id="chatSidebarOverlay" onclick="closeChatSidebar()"></div>
+  <div id="chatSidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-header-top">
+        <span class="sidebar-title">🕘 Recent Chats</span>
+        <button type="button" class="sidebar-close-btn" onclick="closeChatSidebar()">✕</button>
+      </div>
+      <button type="button" class="new-chat-btn" onclick="startNewChat()">✚ Nayi Chat Shuru Karein</button>
+    </div>
+    <div class="sidebar-list" id="chatSidebarList">
+      <div class="sidebar-empty">Loading...</div>
     </div>
   </div>
 </div>
@@ -2087,6 +2279,41 @@ function saveChatUserName(name) {
     }
 }
 
+// ---- CHAT MEMORY: anonymous per-device ID (no login needed) so past chats
+// can be listed/reopened from the "Recent Chats" sidebar. ----
+function getDeviceId() {
+    try {
+        let id = localStorage.getItem("ppDeviceId");
+        if (!id) {
+            id = "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+            localStorage.setItem("ppDeviceId", id);
+        }
+        return id;
+    } catch (e) {
+        if (!window.__ppDeviceId) {
+            window.__ppDeviceId = "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+        }
+        return window.__ppDeviceId;
+    }
+}
+
+function getCurrentSessionId() {
+    try {
+        return localStorage.getItem("ppCurrentSessionId") || null;
+    } catch (e) {
+        return window.__ppCurrentSessionId || null;
+    }
+}
+
+function setCurrentSessionId(id) {
+    try {
+        if (id) localStorage.setItem("ppCurrentSessionId", id);
+        else localStorage.removeItem("ppCurrentSessionId");
+    } catch (e) {
+        window.__ppCurrentSessionId = id;
+    }
+}
+
 function renderChatMessages() {
     const box = document.getElementById("chatMessages");
     if (!box) return;
@@ -2110,6 +2337,110 @@ function renderChatMessages() {
             (isUser ? bubble : avatar + bubble) + "</div>";
     }).join("");
     box.scrollTop = box.scrollHeight;
+}
+
+// ============ CHAT MEMORY: RECENT CHATS SIDEBAR ============
+function openChatSidebar() {
+    document.getElementById("chatSidebarOverlay").classList.add("open");
+    document.getElementById("chatSidebar").classList.add("open");
+    loadChatSessionsList();
+}
+
+function closeChatSidebar() {
+    document.getElementById("chatSidebarOverlay").classList.remove("open");
+    document.getElementById("chatSidebar").classList.remove("open");
+}
+
+function formatSidebarTime(isoString) {
+    try {
+        const d = new Date(isoString);
+        const now = new Date();
+        const sameDay = d.toDateString() === now.toDateString();
+        if (sameDay) {
+            return d.toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit" });
+        }
+        return d.toLocaleDateString("en-PK", { day: "numeric", month: "short" });
+    } catch (e) {
+        return "";
+    }
+}
+
+async function loadChatSessionsList() {
+    const listEl = document.getElementById("chatSidebarList");
+    if (!listEl) return;
+    listEl.innerHTML = "<div class=\"sidebar-empty\">Loading...</div>";
+    try {
+        const response = await fetch("/api/chat-sessions?deviceId=" + encodeURIComponent(getDeviceId()));
+        const json = await response.json();
+        if (!json.success || !Array.isArray(json.data) || json.data.length === 0) {
+            listEl.innerHTML = "<div class=\"sidebar-empty\">🕘 Abhi tak koi purani chat nahi hai۔<br>Nayi chat shuru karke sawal poochein!</div>";
+            return;
+        }
+        const currentId = getCurrentSessionId();
+        listEl.innerHTML = json.data.map((s) => {
+            const isActive = s.id === currentId;
+            return "<div class=\"sidebar-item" + (isActive ? " active-session" : "") + "\" onclick=\"loadChatSession('" + s.id + "')\">" +
+                "<div class=\"sidebar-item-icon\">💬</div>" +
+                "<div class=\"sidebar-item-text\">" +
+                "<div class=\"sidebar-item-title\">" + escapeHtml(s.title) + "</div>" +
+                "<div class=\"sidebar-item-time\">" + formatSidebarTime(s.updatedAt) + " · " + s.messageCount + " messages</div>" +
+                "</div>" +
+                "<button type=\"button\" class=\"sidebar-item-delete\" onclick=\"deleteChatSession(event, '" + s.id + "')\">🗑️</button>" +
+                "</div>";
+        }).join("");
+    } catch (err) {
+        console.error("Chat sessions list error:", err);
+        listEl.innerHTML = "<div class=\"sidebar-empty\">⚠️ Recent chats load nahi ho sakin۔</div>";
+    }
+}
+
+async function loadChatSession(sessionId) {
+    try {
+        const response = await fetch("/api/chat-sessions/" + encodeURIComponent(sessionId) + "?deviceId=" + encodeURIComponent(getDeviceId()));
+        const json = await response.json();
+        if (json.success && json.data && Array.isArray(json.data.messages)) {
+            chatHistory = json.data.messages.map((m) => ({ role: m.role, content: m.content }));
+            setCurrentSessionId(sessionId);
+            renderChatMessages();
+            closeChatSidebar();
+        } else {
+            alert("Ye chat load nahi ho saki, shayad delete ho chuki hai۔");
+            loadChatSessionsList();
+        }
+    } catch (err) {
+        console.error("Load chat session error:", err);
+        alert("Chat load karne mein masla hua۔");
+    }
+}
+
+function startNewChat() {
+    chatHistory = [];
+    setCurrentSessionId(null);
+    renderChatMessages();
+    startChatConversation();
+    closeChatSidebar();
+}
+
+async function deleteChatSession(event, sessionId) {
+    event.stopPropagation(); // don't trigger the row's own click (which loads the chat)
+    if (!confirm("Ye chat hamesha ke liye delete kar dein?")) return;
+    try {
+        const response = await fetch("/api/chat-sessions/" + encodeURIComponent(sessionId) + "?deviceId=" + encodeURIComponent(getDeviceId()), {
+            method: "DELETE"
+        });
+        const json = await response.json();
+        if (json.success) {
+            if (sessionId === getCurrentSessionId()) {
+                startNewChat();
+            }
+            loadChatSessionsList();
+        } else {
+            alert("Delete nahi ho saka۔");
+        }
+    } catch (err) {
+        console.error("Delete chat session error:", err);
+        alert("Delete karne mein masla hua۔");
+    }
 }
 
 // ---- Voice OUTPUT: read a chat reply aloud using the browser's own free
@@ -2201,7 +2532,25 @@ function addBotMessage(text) {
 }
 
 function startChatConversation() {
-    if (chatHistory.length > 0) return; // already started this session
+    if (chatHistory.length > 0) return; // already started this session (or loaded from memory)
+
+    // CHAT MEMORY: if this device has a last-open chat saved, resume it
+    // automatically instead of always starting from scratch.
+    const savedSessionId = getCurrentSessionId();
+    if (savedSessionId) {
+        loadChatSession(savedSessionId).then(() => {
+            if (chatHistory.length === 0) {
+                // session was deleted/expired server-side — fall back to fresh greeting
+                showFreshGreeting();
+            }
+        });
+        return;
+    }
+    showFreshGreeting();
+}
+
+function showFreshGreeting() {
+    if (chatHistory.length > 0) return;
     if (chatUserName) {
         addBotMessage("خوش آمدید واپس, " + chatUserName + "! 😊\nکس چیز کی قیمت جاننا چاہتے ہیں؟");
     } else {
@@ -2240,13 +2589,25 @@ async function answerPriceQuery(queryText) {
             body: JSON.stringify({
                 message: queryText,
                 history: chatHistory.slice(0, -1),
-                userName: chatUserName
+                userName: chatUserName,
+                deviceId: getDeviceId(),
+                sessionId: getCurrentSessionId()
             })
         });
         const json = await response.json();
 
         if (json.success) {
             addBotMessage(json.reply);
+            // Save/refresh which session we're in (server creates one on first message).
+            if (json.sessionId) {
+                const isNewSession = json.sessionId !== getCurrentSessionId();
+                setCurrentSessionId(json.sessionId);
+                // If sidebar happens to be open, keep its list fresh (e.g. a brand-new
+                // chat just got its first title).
+                if (isNewSession && document.getElementById("chatSidebar").classList.contains("open")) {
+                    loadChatSessionsList();
+                }
+            }
         } else if (json.limitReached) {
             // Daily limit hit — this is intentional, don't fall back, just tell them.
             addBotMessage("⚠️ " + json.message);
@@ -2322,6 +2683,7 @@ function resetChatName() {
     chatUserName = null;
     try { localStorage.removeItem("ppChatUserName"); } catch (e) {}
     chatHistory = [];
+    setCurrentSessionId(null);
     renderChatMessages();
     startChatConversation();
 }
