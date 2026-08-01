@@ -2611,11 +2611,16 @@ async function answerPriceQuery(queryText) {
         } else if (json.limitReached) {
             // Daily limit hit — this is intentional, don't fall back, just tell them.
             addBotMessage("⚠️ " + json.message);
+        } else if (json.aiQuotaExceeded) {
+            // AI's own quota is temporarily exhausted — be honest about it instead
+            // of silently falling back to price-only search, which would give a
+            // confusing "not found" answer for non-price questions like weather.
+            addBotMessage("⏳ " + json.message);
         } else {
             // ANY other Gemini-side failure (not configured, permission denied,
-            // regional block, rate limit, etc.) — instead of showing a dead-end
-            // error, gracefully fall back to our own search engine so chat
-            // always gives a useful answer regardless of Gemini's status.
+            // regional block, etc.) — instead of showing a dead-end error,
+            // gracefully fall back to our own search engine so chat still gives
+            // a useful answer for price questions specifically.
             console.error("Gemini chat failed, falling back to own search:", json.message);
             await answerViaOwnSearch(queryText);
         }
