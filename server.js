@@ -1236,6 +1236,107 @@ function enforceSessionCap(db, deviceId) {
     }
 }
 
+// ============ AI AGENT: TOOL DEFINITIONS (REASONING + TOOL USE) ============
+// This is real agentic function-calling (Gemini's free, standard "tools"
+// feature — NOT the paid google_search grounding tool that caused quota
+// problems before). Gemini itself decides, per message, whether a tool is
+// needed at all; we don't pre-guess with keywords anymore. If no tool is
+// needed (casual chat, greetings, general knowledge), Gemini answers
+// directly in ONE API call — only questions that genuinely need live data
+// cost a second call (to hand the tool's result back for a final answer).
+const AGENT_TOOLS = [{
+    functionDeclarations: [
+        {
+            name: 'get_live_price',
+            description: 'Punjab ki kisi mandi/rozmarra cheez (atta, chini, sabzi, phal, daal, etc) ki abhi ki wholesale price nikalta hai. Jab user kisi cheez ki qeemat, rate, ya price poochhe to ye tool istemal karein.',
+            parameters: {
+                type: 'OBJECT',
+                properties: {
+                    product: { type: 'STRING', description: "Product ka naam, jaise 'atta', 'chini', 'aloo'" },
+                    city: { type: 'STRING', description: "Optional — Punjab ka koi shehar agar user ne specify kiya ho, jaise 'lahore', 'multan'" }
+                },
+                required: ['product']
+            }
+        },
+        {
+            name: 'get_weather',
+            description: 'Kisi shehar ka abhi ka mausam/temperature aur us jagah ka current local waqt/tareekh batata hai. Jab user mausam, temperature, ya kisi jagah ka waqt/date poochhe to ye tool istemal karein.',
+            parameters: {
+                type: 'OBJECT',
+                properties: {
+                    city: { type: 'STRING', description: "Shehar ka naam, jaise 'lahore', 'london'" }
+                },
+                required: ['city']
+            }
+        },
+        {
+            name: 'search_internet',
+            description: 'Internet par general current/live information search karta hai — khabaren, sports scores, ya koi bhi cheez jo upar diye gaye tools se na mile. Sirf tab istemal karein jab sawal aisi current information maange jo aapko pehle se pata na ho.',
+            parameters: {
+                type: 'OBJECT',
+                properties: {
+                    query: { type: 'STRING', description: 'Search query' }
+                },
+                required: ['query']
+            }
+        }
+    ]
+}];
+
+// Runs the actual backend logic behind whichever tool Gemini decided to call,
+// and returns a small JSON-friendly result Gemini can read to write its
+// final answer. Every branch is wrapped so a tool failure never crashes chat
+// — it just tells Gemini the data wasn't available.
+async function executeAgentTool(name, args) {
+    try {
+        if (name === 'get_live_price') {
+            const product = sanitizeInput(String(args.product || ''));
+            const city = args.city ? sanitizeInput(String(args.city)) : null;
+            const result = await withTimeout(
+                performSmartSearch(product, city),
+                CONFIG.INTERNET_SEARCH_TOTAL_BUDGET_MS,
+                { success: false }
+            );
+            if (result && result.success && result.data && result.data[0]) {
+                const item = result.data[0];
+                return { found: true, product: item.name, price: item.price, shop: item.shop || 'Punjab Mandi' };
+            }
+            return { found: false, message: 'Ye product hamare data mein nahi mila' };
+        }
+
+        if (name === 'get_weather') {
+            const city = sanitizeInput(String(args.city || 'lahore'));
+            const info = await withTimeout(getWeatherAndTime(city), 4500, null);
+            if (info) {
+                return {
+                    found: true,
+                    city: info.city,
+                    country: info.country,
+                    temperatureC: info.temperatureC,
+                    windSpeedKmh: info.windSpeedKmh,
+                    localTime: info.localTime,
+                    timezone: info.timezone
+                };
+            }
+            return { found: false, message: 'Weather data nahi mila' };
+        }
+
+        if (name === 'search_internet') {
+            const query = sanitizeInput(String(args.query || ''));
+            const results = await withTimeout(searchWebFree(query), 4500, []);
+            if (results.length > 0) {
+                return { found: true, results };
+            }
+            return { found: false, message: 'Internet search se kuch nahi mila' };
+        }
+
+        return { found: false, message: 'Unknown tool: ' + name };
+    } catch (e) {
+        console.error(`⚠️ Agent tool "${name}" execution failed:`, e.message);
+        return { found: false, message: 'Tool error: ' + e.message };
+    }
+}
+
 // ============ DOES THIS ITEM HAVE A LIVE INTERNET SOURCE? ============
 // Used to decide search priority: if an item has a real trusted source mapped
 // (AMIS/Naheed), we should trust a LIVE price over whatever is sitting in
@@ -2322,28 +2423,6 @@ function handleRequest(req, res) {
                     const safeUserName = typeof userName === 'string' ? userName.replace(/[^a-zA-Z\u0600-\u06FF\s]/g, '').slice(0, 30) : '';
                     const namePart = safeUserName ? `User ka naam "${safeUserName}" hai — unhe isi naam se pukarein.` : '';
 
-                    // If the message seems to be about a known item, fetch our OWN
-                    // live price data and hand it to Gemini as context — this way
-                    // the chatbot can answer price questions with real numbers
-                    // instead of just deflecting to the Search tab.
-                    let liveDataNote = '';
-                    try {
-                        const lowerMsg = sanitizeInput(String(message)).toLowerCase();
-                        const canonicalKey = resolveCanonicalKey(lowerMsg);
-                        if (canonicalKey) {
-                            const searchResult = await withTimeout(
-                                performSmartSearch(lowerMsg),
-                                CONFIG.INTERNET_SEARCH_TOTAL_BUDGET_MS
-                            );
-                            if (searchResult && searchResult.success && searchResult.data && searchResult.data[0]) {
-                                const item = searchResult.data[0];
-                                liveDataNote = ` [LIVE DATA MILA HAI]: "${item.name}" ki abhi ki qeemat Rs ${item.price} hai (${item.shop || 'Punjab Mandi'} se). Ye asli, taaza data hai — isay seedha jawab mein istemal karein, "Search tab istemal karein" mat kahein.`;
-                            }
-                        }
-                    } catch (e) {
-                        console.error('⚠️ Chat live-data lookup failed:', e.message);
-                    }
-
                     // Aaj ki date/din khud yahin bata dete hain (Pakistan/Asia-Karachi
                     // waqt ke mutabiq) taake Gemini ko sahi, aaj ki date pata ho —
                     // ye local calculation hai, koi extra API call/quota istemal nahi karti.
@@ -2355,68 +2434,65 @@ function handleRequest(req, res) {
                         day: 'numeric'
                     });
 
-                    // RELIABLE weather/time lookup (Open-Meteo public API — never
-                    // blocked, unlike scraping). Checked first because it's the most
-                    // common thing people ask a "current info" bot for.
-                    let weatherTimeNote = '';
-                    try {
-                        const placeGuess = detectWeatherOrTimeQuery(message);
-                        if (placeGuess) {
-                            const info = await withTimeout(getWeatherAndTime(placeGuess), 4500, null);
-                            if (info) {
-                                weatherTimeNote = `\n\n[LIVE WEATHER/TIME DATA — ${info.city}, ${info.country}]: Abhi ka waqt ${info.localTime} (${info.timezone}) hai. Temperature ${info.temperatureC}°C hai, hawa ki raftar ${info.windSpeedKmh} km/h hai. Ye asli, taaza data hai — isay seedha jawab mein istemal karein.`;
-                            }
-                        }
-                    } catch (e) {
-                        console.error('⚠️ Chat weather/time lookup failed (chat continues normally):', e.message);
-                    }
+                    const systemPrompt = `Aap "Punjab Price App" ke andar ek madadgaar AI agent hain. ${namePart} Aaj ki tareekh ${todayReadable} hai (Pakistan waqt ke mutabiq). Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain. Aapke paas teen tools hain — get_live_price (mandi rates), get_weather (mausam/waqt), aur search_internet (general current info). SIRF jab sawal genuinely inmein se kisi cheez ki zaroorat rakhta ho tab hi tool istemal karein — hisaab kitab, khana pakane ke tareeke, salaam-dua, ya general maloomat jaisi cheezon ke liye tool ki zaroorat nahi, seedha apne ilm se jawab dein.`;
 
-                    // FREE general internet search (DuckDuckGo, no API key/cost) for
-                    // anything the weather/time lookup above didn't already cover.
-                    // Strict timeout + try/catch: agar ye fail/slow ho to chat bilkul
-                    // pehle jaisi hi chalti rahegi, sirf bina live-web-context ke.
-                    let webSearchNote = '';
-                    if (!weatherTimeNote) {
-                        try {
-                            const searchResults = await withTimeout(
-                                searchWebFree(sanitizeInput(String(message))),
-                                4500,
-                                []
-                            );
-                            if (searchResults && searchResults.length > 0) {
-                                const compiled = searchResults
-                                    .map(r => `- ${r.title}: ${r.snippet}`)
-                                    .join('\n');
-                                webSearchNote = `\n\n[INTERNET SEARCH RESULTS — sirf tab istemal karein agar sawal se related hon, warna ignore kar dein]:\n${compiled}`;
-                            }
-                        } catch (e) {
-                            console.error('⚠️ Chat web-search note failed (chat continues normally):', e.message);
-                        }
-                    }
-
-                    const systemPrompt = `Aap "Punjab Price App" ke andar ek madadgaar AI chat assistant hain. ${namePart} Aaj ki tareekh ${todayReadable} hai (Pakistan waqt ke mutabiq) — agar koi date/din poochhe to yehi sahi jawab dein. Aap Roman Urdu ya Urdu mein, dosti wale, seedhe andaz mein jawab dete hain.${liveDataNote}${weatherTimeNote}${webSearchNote} Agar koi kisi aisi cheez ki price poochhe jiska data upar nahi diya gaya, unhe app ke Search feature ka istemal karne ka mashwara dein — lekin baaki har sawal (khana pakane ke tareeke, hisaab kitab, general maloomat, mashware, mausam, khabaren) mein poori tarah madad karein, upar diye gaye internet results ko context ke tor par istemal karte hue.`;
-
-                    const response = await axios.post(
-                        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
-                        {
-                            contents: geminiContents,
-                            systemInstruction: { parts: [{ text: systemPrompt }] },
-                            generationConfig: { maxOutputTokens: 500 }
+                    const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent';
+                    const geminiHeaders = {
+                        headers: {
+                            'x-goog-api-key': process.env.GEMINI_API_KEY,
+                            'Content-Type': 'application/json'
                         },
-                        {
-                            headers: {
-                                'x-goog-api-key': process.env.GEMINI_API_KEY,
-                                'Content-Type': 'application/json'
-                            },
-                            timeout: 20000
-                        }
-                    );
+                        timeout: 20000
+                    };
 
-                    const candidate = (response.data.candidates || [])[0];
-                    const reply = candidate && candidate.content && candidate.content.parts
-                        ? candidate.content.parts.map(p => p.text || '').join('\n')
-                        : '';
-                    const finalReply = reply || 'Maazrat, jawab nahi ban saka.';
+                    // ---- STEP 1: let Gemini REASON about whether it needs a tool ----
+                    const firstResponse = await axios.post(GEMINI_URL, {
+                        contents: geminiContents,
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        tools: AGENT_TOOLS,
+                        generationConfig: { maxOutputTokens: 500 }
+                    }, geminiHeaders);
+
+                    const firstCandidate = (firstResponse.data.candidates || [])[0];
+                    const firstParts = (firstCandidate && firstCandidate.content && firstCandidate.content.parts) || [];
+                    const functionCallParts = firstParts.filter(p => p.functionCall);
+
+                    let finalReply;
+
+                    if (functionCallParts.length > 0) {
+                        // ---- STEP 2: TOOL/SEARCH — execute whichever tool(s) Gemini asked for ----
+                        console.log(`🤖 Agent chose tool(s): ${functionCallParts.map(p => p.functionCall.name).join(', ')} for message: "${message}"`);
+                        const toolResults = await Promise.all(
+                            functionCallParts.map(p => executeAgentTool(p.functionCall.name, p.functionCall.args || {}))
+                        );
+
+                        // ---- STEP 3: hand the real tool result(s) back so Gemini can write the FINAL smart answer ----
+                        const secondResponse = await axios.post(GEMINI_URL, {
+                            contents: [
+                                ...geminiContents,
+                                { role: 'model', parts: functionCallParts },
+                                {
+                                    role: 'function',
+                                    parts: functionCallParts.map((p, i) => ({
+                                        functionResponse: { name: p.functionCall.name, response: toolResults[i] }
+                                    }))
+                                }
+                            ],
+                            systemInstruction: { parts: [{ text: systemPrompt }] },
+                            tools: AGENT_TOOLS,
+                            generationConfig: { maxOutputTokens: 500 }
+                        }, geminiHeaders);
+
+                        const secondCandidate = (secondResponse.data.candidates || [])[0];
+                        const secondText = secondCandidate && secondCandidate.content && secondCandidate.content.parts
+                            ? secondCandidate.content.parts.map(p => p.text || '').join('\n')
+                            : '';
+                        finalReply = secondText || 'Maazrat, jawab nahi ban saka.';
+                    } else {
+                        // ---- No tool needed — Gemini answered directly, ONE API call total ----
+                        const directText = firstParts.map(p => p.text || '').join('\n');
+                        finalReply = directText || 'Maazrat, jawab nahi ban saka.';
+                    }
 
                     const usedCount = incrementChatUsage(clientIp);
 
