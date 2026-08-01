@@ -2445,13 +2445,35 @@ function handleRequest(req, res) {
                         timeout: 20000
                     };
 
+                    // Only retry TRANSIENT problems (network blip, Gemini's own 5xx,
+                    // or a temporarily overloaded model) — retrying a 429 (quota
+                    // exceeded) just wastes more quota and won't succeed sooner, so
+                    // that one fails fast instead.
+                    async function callGeminiWithRetry(payload) {
+                        const maxAttempts = 3;
+                        let lastError = null;
+                        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                            try {
+                                return await axios.post(GEMINI_URL, payload, geminiHeaders);
+                            } catch (e) {
+                                lastError = e;
+                                const status = e.response && e.response.status;
+                                if (status === 429) throw e; // fail fast, don't burn more quota
+                                if (attempt < maxAttempts - 1) {
+                                    await new Promise(resolve => setTimeout(resolve, 400 * Math.pow(2, attempt)));
+                                }
+                            }
+                        }
+                        throw lastError;
+                    }
+
                     // ---- STEP 1: let Gemini REASON about whether it needs a tool ----
-                    const firstResponse = await axios.post(GEMINI_URL, {
+                    const firstResponse = await callGeminiWithRetry({
                         contents: geminiContents,
                         systemInstruction: { parts: [{ text: systemPrompt }] },
                         tools: AGENT_TOOLS,
                         generationConfig: { maxOutputTokens: 500 }
-                    }, geminiHeaders);
+                    });
 
                     const firstCandidate = (firstResponse.data.candidates || [])[0];
                     const firstParts = (firstCandidate && firstCandidate.content && firstCandidate.content.parts) || [];
@@ -2467,7 +2489,7 @@ function handleRequest(req, res) {
                         );
 
                         // ---- STEP 3: hand the real tool result(s) back so Gemini can write the FINAL smart answer ----
-                        const secondResponse = await axios.post(GEMINI_URL, {
+                        const secondResponse = await callGeminiWithRetry({
                             contents: [
                                 ...geminiContents,
                                 { role: 'model', parts: functionCallParts },
@@ -2481,7 +2503,7 @@ function handleRequest(req, res) {
                             systemInstruction: { parts: [{ text: systemPrompt }] },
                             tools: AGENT_TOOLS,
                             generationConfig: { maxOutputTokens: 500 }
-                        }, geminiHeaders);
+                        });
 
                         const secondCandidate = (secondResponse.data.candidates || [])[0];
                         const secondText = secondCandidate && secondCandidate.content && secondCandidate.content.parts
@@ -2552,8 +2574,15 @@ function handleRequest(req, res) {
                     }));
                 } catch (e) {
                     console.error('⚠️ /api/chat error:', e.response ? JSON.stringify(e.response.data) : e.message);
+                    const isQuotaExceeded = e.response && e.response.status === 429;
                     res.writeHead(200);
-                    res.end(JSON.stringify({ success: false, message: 'Chat mein masla aaya, dobara koshish karein.' }));
+                    res.end(JSON.stringify({
+                        success: false,
+                        aiQuotaExceeded: isQuotaExceeded,
+                        message: isQuotaExceeded
+                            ? 'AI abhi thodi der ke liye zyada masroof hai (quota khatam), thodi der baad dobara koshish karein.'
+                            : 'Chat mein masla aaya, dobara koshish karein.'
+                    }));
                 }
             })();
         });
