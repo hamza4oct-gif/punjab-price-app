@@ -37,6 +37,8 @@ const CONFIG = {
     BACKGROUND_REFRESH_INTERVAL_MS: 30 * 60 * 1000,   // 30 min
     CACHE_CLEANUP_INTERVAL_MS: 15 * 60 * 1000,        // 15 min
     MAX_SEARCH_HISTORY: 500,
+    MAX_CHAT_SESSIONS_PER_DEVICE: 30,
+    MAX_MESSAGES_PER_SESSION: 100,
     RATE_LIMIT_WINDOW_MS: 60 * 1000,
     RATE_LIMIT_MAX_REQUESTS: 60,
     RETRY: { retries: 2, baseDelayMs: 150 },
@@ -646,6 +648,7 @@ function ensureSchema(db) {
     if (!db.syncLog) db.syncLog = [];
     if (!db.searchHistory) db.searchHistory = [];
     if (!db.predictions) db.predictions = {};
+    if (!db.chatSessions) db.chatSessions = [];
     if (!db.analytics) {
         db.analytics = {
             dailyStats: {},
@@ -1205,6 +1208,32 @@ async function searchWebFree(query) {
 
     console.log(`⚠️ All free web search methods failed for "${query}" — chat continues without live context`);
     return [];
+}
+
+// ============ CHAT MEMORY: SESSION HELPERS (NO LOGIN NEEDED) ============
+// Each device gets its own anonymous "deviceId" (generated client-side,
+// stored in the browser's localStorage). Sessions are grouped under that ID
+// so a "Recent Chats" sidebar can list/reopen past conversations — no user
+// accounts required, exactly like ChatGPT's guest mode.
+function generateSessionId() {
+    return 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+}
+
+function makeSessionTitle(firstMessage) {
+    const clean = String(firstMessage || 'Nayi Chat').trim();
+    return clean.length > 40 ? clean.slice(0, 40) + '…' : (clean || 'Nayi Chat');
+}
+
+// Keeps each device's session count under the cap by deleting the oldest
+// sessions first — protects database.json from growing unbounded.
+function enforceSessionCap(db, deviceId) {
+    const deviceSessions = db.chatSessions
+        .filter(s => s.deviceId === deviceId)
+        .sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+    while (deviceSessions.length > CONFIG.MAX_CHAT_SESSIONS_PER_DEVICE) {
+        const oldest = deviceSessions.shift();
+        db.chatSessions = db.chatSessions.filter(s => s.id !== oldest.id);
+    }
 }
 
 // ============ DOES THIS ITEM HAVE A LIVE INTERNET SOURCE? ============
@@ -2188,6 +2217,59 @@ function handleRequest(req, res) {
         return;
     }
 
+    // ============ CHAT MEMORY: LIST A DEVICE'S RECENT CHATS ============
+    if (pathname === '/api/chat-sessions' && req.method === 'GET') {
+        const deviceId = sanitizeInput(query.deviceId || '');
+        if (!deviceId) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ success: false, message: 'deviceId required' }));
+            return;
+        }
+        const db = readDB();
+        const sessions = db.chatSessions
+            .filter(s => s.deviceId === deviceId)
+            .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+            .map(s => ({
+                id: s.id,
+                title: s.title,
+                updatedAt: s.updatedAt,
+                messageCount: s.messages.length
+            }));
+        res.writeHead(200);
+        res.end(JSON.stringify({ success: true, data: sessions }));
+        return;
+    }
+
+    // ============ CHAT MEMORY: GET ONE SESSION'S FULL MESSAGES ============
+    if (pathname.match(/^\/api\/chat-sessions\/[a-zA-Z0-9_]+$/) && req.method === 'GET') {
+        const sessionId = pathname.split('/')[3];
+        const deviceId = sanitizeInput(query.deviceId || '');
+        const db = readDB();
+        const session = db.chatSessions.find(s => s.id === sessionId && s.deviceId === deviceId);
+        if (!session) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ success: false, message: 'Chat nahi mili' }));
+            return;
+        }
+        res.writeHead(200);
+        res.end(JSON.stringify({ success: true, data: session }));
+        return;
+    }
+
+    // ============ CHAT MEMORY: DELETE A SESSION ============
+    if (pathname.match(/^\/api\/chat-sessions\/[a-zA-Z0-9_]+$/) && req.method === 'DELETE') {
+        const sessionId = pathname.split('/')[3];
+        const deviceId = sanitizeInput(query.deviceId || '');
+        const db = readDB();
+        const before = db.chatSessions.length;
+        db.chatSessions = db.chatSessions.filter(s => !(s.id === sessionId && s.deviceId === deviceId));
+        const deleted = db.chatSessions.length < before;
+        if (deleted) writeDB(db);
+        res.writeHead(deleted ? 200 : 404);
+        res.end(JSON.stringify({ success: deleted, message: deleted ? 'Chat delete ho gayi' : 'Chat nahi mili' }));
+        return;
+    }
+
     // ============ AI CHAT (GEMINI) ============
     if (pathname === '/api/chat' && req.method === 'POST') {
         const clientIp = req.socket.remoteAddress || 'unknown';
@@ -2201,17 +2283,34 @@ function handleRequest(req, res) {
         req.on('end', () => {
             (async () => {
                 try {
-                    const { message, history, userName } = JSON.parse(body);
+                    const { message, history, userName, deviceId, sessionId } = JSON.parse(body);
                     if (!message || typeof message !== 'string' || !message.trim()) {
                         res.writeHead(400);
                         res.end(JSON.stringify({ success: false, message: 'Message required' }));
                         return;
                     }
 
+                    const safeDeviceId = typeof deviceId === 'string' ? sanitizeInput(deviceId) : '';
+                    const safeSessionId = typeof sessionId === 'string' ? sanitizeInput(sessionId) : '';
+
+                    // If this device+session already has saved history on the server,
+                    // that's the source of truth for memory (more reliable than trusting
+                    // whatever the client sent). Otherwise fall back to client-sent history
+                    // (keeps old clients/tabs without a session yet working normally).
+                    let storedSession = null;
+                    if (safeDeviceId && safeSessionId) {
+                        const dbForHistory = readDB();
+                        storedSession = dbForHistory.chatSessions.find(
+                            s => s.id === safeSessionId && s.deviceId === safeDeviceId
+                        ) || null;
+                    }
+
                     // Keep conversation history bounded so requests stay fast and small.
-                    const safeHistory = Array.isArray(history) ? history.slice(-10) : [];
+                    const effectiveHistory = storedSession
+                        ? storedSession.messages.slice(-10).map(m => ({ role: m.role, content: m.content }))
+                        : (Array.isArray(history) ? history.slice(-10) : []);
                     const geminiContents = [
-                        ...safeHistory
+                        ...effectiveHistory
                             .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
                             .map(m => ({
                                 role: m.role === 'assistant' ? 'model' : 'user',
@@ -2317,14 +2416,63 @@ function handleRequest(req, res) {
                     const reply = candidate && candidate.content && candidate.content.parts
                         ? candidate.content.parts.map(p => p.text || '').join('\n')
                         : '';
+                    const finalReply = reply || 'Maazrat, jawab nahi ban saka.';
 
                     const usedCount = incrementChatUsage(clientIp);
+
+                    // ---- CHAT MEMORY: save this exchange so it survives page reloads
+                    // and shows up in the "Recent Chats" sidebar. Only runs if the
+                    // client sent a deviceId (older/other clients keep working as
+                    // before, just without persistence). Never blocks the response —
+                    // if saving fails, the user still gets their reply.
+                    let returnedSessionId = safeSessionId || null;
+                    if (safeDeviceId) {
+                        try {
+                            const saveResult = await enqueueUpdate({
+                                key: `chatsave:${safeDeviceId}:${Date.now()}:${Math.random()}`,
+                                dedupe: false,
+                                run: async () => {
+                                    const dbSave = readDB();
+                                    let session = safeSessionId
+                                        ? dbSave.chatSessions.find(s => s.id === safeSessionId && s.deviceId === safeDeviceId)
+                                        : null;
+
+                                    if (!session) {
+                                        session = {
+                                            id: generateSessionId(),
+                                            deviceId: safeDeviceId,
+                                            title: makeSessionTitle(message),
+                                            messages: [],
+                                            createdAt: new Date().toISOString(),
+                                            updatedAt: new Date().toISOString()
+                                        };
+                                        dbSave.chatSessions.push(session);
+                                    }
+
+                                    session.messages.push({ role: 'user', content: message, timestamp: new Date().toISOString() });
+                                    session.messages.push({ role: 'assistant', content: finalReply, timestamp: new Date().toISOString() });
+                                    if (session.messages.length > CONFIG.MAX_MESSAGES_PER_SESSION) {
+                                        session.messages = session.messages.slice(-CONFIG.MAX_MESSAGES_PER_SESSION);
+                                    }
+                                    session.updatedAt = new Date().toISOString();
+
+                                    enforceSessionCap(dbSave, safeDeviceId);
+                                    writeDB(dbSave);
+                                    return session.id;
+                                }
+                            });
+                            if (saveResult) returnedSessionId = saveResult;
+                        } catch (e) {
+                            console.error('⚠️ Chat memory save failed (reply still sent normally):', e.message);
+                        }
+                    }
 
                     res.writeHead(200);
                     res.end(JSON.stringify({
                         success: true,
-                        reply: reply || 'Maazrat, jawab nahi ban saka.',
-                        remaining: Math.max(0, CHAT_DAILY_LIMIT - usedCount)
+                        reply: finalReply,
+                        remaining: Math.max(0, CHAT_DAILY_LIMIT - usedCount),
+                        sessionId: returnedSessionId
                     }));
                 } catch (e) {
                     console.error('⚠️ /api/chat error:', e.response ? JSON.stringify(e.response.data) : e.message);
