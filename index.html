@@ -2618,16 +2618,34 @@ async function answerPriceQuery(queryText) {
             addBotMessage("⏳ " + json.message);
         } else {
             // ANY other Gemini-side failure (not configured, permission denied,
-            // regional block, etc.) — instead of showing a dead-end error,
-            // gracefully fall back to our own search engine so chat still gives
-            // a useful answer for price questions specifically.
-            console.error("Gemini chat failed, falling back to own search:", json.message);
-            await answerViaOwnSearch(queryText);
+            // regional block, etc.) — only fall back to our own price search when
+            // the message actually LOOKS like a price question. For anything else
+            // (general questions, random topics), forcing it through price search
+            // gives confusing, unrelated answers — so we're honest instead.
+            console.error("Gemini chat failed:", json.message);
+            if (looksLikePriceQuestion(queryText)) {
+                await answerViaOwnSearch(queryText);
+            } else {
+                addBotMessage("⚠️ AI abhi jawab nahi de saka، thodi der baad dobara koshish karein۔");
+            }
         }
     } catch (err) {
         console.error("Chat error:", err);
         addBotMessage("⚠️ سرور سے رابطہ ناکام رہا، دوبارہ کوشش کریں۔");
     }
+}
+
+// Quick heuristic: does this message actually look like it's asking about a
+// price/rate? Only messages that do should ever fall back to price search —
+// running an unrelated question (like "is X app available on the store?")
+// through price search gives a confusing, unrelated answer.
+const PRICE_QUESTION_HINTS = [
+    "price", "qeemat", "قیمت", "rate", "ریٹ", "kitne", "kitni", "kitna",
+    "rs ", "₨", "rupay", "روپے", "sasta", "mehnga", "سستا", "مہنگا"
+];
+function looksLikePriceQuestion(text) {
+    const lower = String(text || "").toLowerCase();
+    return PRICE_QUESTION_HINTS.some((hint) => lower.includes(hint));
 }
 
 async function answerViaOwnSearch(queryText) {
