@@ -573,11 +573,26 @@ function sanitizeInput(raw) {
 
 function resolveCanonicalKey(searchKey) {
     if (ALIAS_LOOKUP[searchKey]) return ALIAS_LOOKUP[searchKey];
+
+    // Direction 1: user typed a short partial word (e.g. typing "ata" while an
+    // alias is "atta") — safe to match loosely, this is normal autocomplete-style
+    // typing on the Search page.
     for (const [alias, canonical] of Object.entries(ALIAS_LOOKUP)) {
-        if (alias.includes(searchKey) || searchKey.includes(alias)) {
-            return canonical;
-        }
+        if (alias.includes(searchKey)) return canonical;
     }
+
+    // Direction 2: does a short alias appear somewhere inside a LONGER piece of
+    // text (e.g. a whole chat sentence)? This MUST use whole-word boundaries,
+    // not raw substring — otherwise short aliases like "ata" (Atta) falsely
+    // match inside unrelated words like "batao" ("b-ATA-o"), causing wildly
+    // wrong answers to unrelated questions.
+    for (const [alias, canonical] of Object.entries(ALIAS_LOOKUP)) {
+        if (alias.length < 3) continue; // too short to safely word-match in free text
+        const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const wordBoundaryRegex = new RegExp('(^|[^a-zA-Z\u0600-\u06FF])' + escaped + '($|[^a-zA-Z\u0600-\u06FF])', 'i');
+        if (wordBoundaryRegex.test(searchKey)) return canonical;
+    }
+
     return null;
 }
 
