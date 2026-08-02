@@ -2504,14 +2504,25 @@ function handleRequest(req, res) {
                         );
 
                         // ---- STEP 3: hand the real tool result(s) back so Gemini can write the FINAL smart answer ----
+                        // IMPORTANT: per Gemini's current API, the function result goes
+                        // back with role 'user' (NOT the older/deprecated 'function' role
+                        // — using 'function' here was the exact bug causing every
+                        // tool-based question to silently fail while plain chat worked
+                        // fine). We also echo back each call's "id" when the model
+                        // provided one, since newer models use it to match the response
+                        // to the right call.
                         const secondResponse = await callGeminiWithRetry({
                             contents: [
                                 ...geminiContents,
                                 { role: 'model', parts: functionCallParts },
                                 {
-                                    role: 'function',
+                                    role: 'user',
                                     parts: functionCallParts.map((p, i) => ({
-                                        functionResponse: { name: p.functionCall.name, response: toolResults[i] }
+                                        functionResponse: {
+                                            name: p.functionCall.name,
+                                            response: toolResults[i],
+                                            ...(p.functionCall.id ? { id: p.functionCall.id } : {})
+                                        }
                                     }))
                                 }
                             ],
