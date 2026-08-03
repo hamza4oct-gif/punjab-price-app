@@ -2487,63 +2487,75 @@ function handleRequest(req, res) {
                     // version only allowed ONE tool round — if Gemini needed a
                     // second lookup (e.g. one search wasn't enough), it had nothing
                     // to show and chat replied "Maazrat, jawab nahi ban saka" even
-                    // though nothing had actually errored. Capped at 4 steps so a
-                    // confused model can never loop forever or drain quota.
-                    const MAX_AGENT_STEPS = 4;
-                    let agentContents = geminiContents;
-                    let finalReply = null;
+                    // though nothing had actually errored. Capped at 3 steps AND an
+                    // overall time budget so a confused/slow model can never loop
+                    // forever, drain quota, or blow past the hosting platform's own
+                    // gateway timeout (which would return an HTML error page instead
+                    // of our clean JSON — exactly the failure mode this app's
+                    // internet-search code was already built to avoid elsewhere).
+                    const MAX_AGENT_STEPS = 3;
+                    const AGENT_TOTAL_BUDGET_MS = 25000;
 
-                    for (let step = 0; step < MAX_AGENT_STEPS; step++) {
-                        const stepResponse = await callGeminiWithRetry({
-                            contents: agentContents,
-                            systemInstruction: { parts: [{ text: systemPrompt }] },
-                            tools: AGENT_TOOLS,
-                            generationConfig: { maxOutputTokens: 500 }
-                        });
+                    async function runAgentLoop() {
+                        let agentContents = geminiContents;
+                        let loopFinalReply = null;
 
-                        const stepCandidate = (stepResponse.data.candidates || [])[0];
-                        const stepParts = (stepCandidate && stepCandidate.content && stepCandidate.content.parts) || [];
-                        const stepFunctionCalls = stepParts.filter(p => p.functionCall);
+                        for (let step = 0; step < MAX_AGENT_STEPS; step++) {
+                            const stepResponse = await callGeminiWithRetry({
+                                contents: agentContents,
+                                systemInstruction: { parts: [{ text: systemPrompt }] },
+                                tools: AGENT_TOOLS,
+                                generationConfig: { maxOutputTokens: 500 }
+                            });
 
-                        if (stepFunctionCalls.length === 0) {
-                            // Gemini gave a final text answer — agent loop is done.
-                            const stepText = stepParts.map(p => p.text || '').join('\n');
-                            if (stepText) finalReply = stepText;
-                            break;
+                            const stepCandidate = (stepResponse.data.candidates || [])[0];
+                            const stepParts = (stepCandidate && stepCandidate.content && stepCandidate.content.parts) || [];
+                            const stepFunctionCalls = stepParts.filter(p => p.functionCall);
+
+                            if (stepFunctionCalls.length === 0) {
+                                // Gemini gave a final text answer — agent loop is done.
+                                const stepText = stepParts.map(p => p.text || '').join('\n');
+                                if (stepText) loopFinalReply = stepText;
+                                break;
+                            }
+
+                            // Gemini wants (more) tool(s) — run them and feed results back in,
+                            // then loop again so it can either answer or ask for yet another tool.
+                            console.log(`🤖 Agent step ${step + 1}: tool(s) ${stepFunctionCalls.map(p => p.functionCall.name).join(', ')} for message: "${message}"`);
+                            const stepToolResults = await Promise.all(
+                                stepFunctionCalls.map(p => executeAgentTool(p.functionCall.name, p.functionCall.args || {}))
+                            );
+
+                            // IMPORTANT: per Gemini's current API, the function result goes
+                            // back with role 'user' (NOT the older/deprecated 'function' role
+                            // — using 'function' here was an earlier bug that broke every
+                            // tool-based question while plain chat worked fine). We also
+                            // echo back each call's "id" when the model provided one, since
+                            // newer models use it to match the response to the right call.
+                            agentContents = [
+                                ...agentContents,
+                                { role: 'model', parts: stepFunctionCalls },
+                                {
+                                    role: 'user',
+                                    parts: stepFunctionCalls.map((p, i) => ({
+                                        functionResponse: {
+                                            name: p.functionCall.name,
+                                            response: stepToolResults[i],
+                                            ...(p.functionCall.id ? { id: p.functionCall.id } : {})
+                                        }
+                                    }))
+                                }
+                            ];
                         }
 
-                        // Gemini wants (more) tool(s) — run them and feed results back in,
-                        // then loop again so it can either answer or ask for yet another tool.
-                        console.log(`🤖 Agent step ${step + 1}: tool(s) ${stepFunctionCalls.map(p => p.functionCall.name).join(', ')} for message: "${message}"`);
-                        const stepToolResults = await Promise.all(
-                            stepFunctionCalls.map(p => executeAgentTool(p.functionCall.name, p.functionCall.args || {}))
-                        );
-
-                        // IMPORTANT: per Gemini's current API, the function result goes
-                        // back with role 'user' (NOT the older/deprecated 'function' role
-                        // — using 'function' here was an earlier bug that broke every
-                        // tool-based question while plain chat worked fine). We also
-                        // echo back each call's "id" when the model provided one, since
-                        // newer models use it to match the response to the right call.
-                        agentContents = [
-                            ...agentContents,
-                            { role: 'model', parts: stepFunctionCalls },
-                            {
-                                role: 'user',
-                                parts: stepFunctionCalls.map((p, i) => ({
-                                    functionResponse: {
-                                        name: p.functionCall.name,
-                                        response: stepToolResults[i],
-                                        ...(p.functionCall.id ? { id: p.functionCall.id } : {})
-                                    }
-                                }))
-                            }
-                        ];
+                        return loopFinalReply;
                     }
 
+                    let finalReply = await withTimeout(runAgentLoop(), AGENT_TOTAL_BUDGET_MS, null);
+
                     if (!finalReply) {
-                        console.log(`⚠️ Agent loop ended without final text for message: "${message}" (hit step cap or empty response)`);
-                        finalReply = 'Maazrat, jawab nahi ban saka.';
+                        console.log(`⚠️ Agent loop ended without final text for message: "${message}" (hit step/time cap or empty response)`);
+                        finalReply = 'Maazrat, jawab nahi ban saka, dobara koshish karein.';
                     }
 
                     const usedCount = incrementChatUsage(clientIp);
