@@ -639,6 +639,89 @@ body { margin: 0; font-family: Arial, sans-serif; }
     justify-content: center;
 }
 #chatSidebarToggleBtn:active { transform: scale(0.9); }
+
+/* ================= CHAT: LUXURY POLISH + DARK MODE ================= */
+#chatRoot {
+    background: linear-gradient(180deg, #eef2f9 0%, #e6ecf7 100%);
+    transition: background 0.3s ease;
+}
+#chatDarkToggleBtn {
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: white;
+    font-size: 17px;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#chatDarkToggleBtn:active { transform: scale(0.9); }
+
+#chatMessages { scroll-behavior: smooth; }
+.chat-bubble-in {
+    animation: chatBubbleIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes chatBubbleIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+#chatRoot.dark-mode { background: linear-gradient(180deg, #0f172a 0%, #131c31 100%); }
+#chatRoot.dark-mode #chatMessages .bot-bubble {
+    background: #1e293b !important;
+    color: #e2e8f0 !important;
+    border-color: rgba(255,255,255,0.08) !important;
+}
+#chatRoot.dark-mode #chatMessages .bot-avatar { background: #334155 !important; }
+#chatRoot.dark-mode .chat-input-bar {
+    background: #131c31 !important;
+    border-top-color: rgba(255,255,255,0.06) !important;
+}
+#chatRoot.dark-mode .chat-input-bar input {
+    background: #1e293b !important;
+    color: #e2e8f0 !important;
+    border-color: #334155 !important;
+}
+#chatRoot.dark-mode .chat-input-bar input::placeholder { color: #64748b; }
+#chatRoot.dark-mode .speak-btn { background: #334155 !important; color: #93c5fd !important; }
+
+#chatSidebar.dark-mode { background: #0f172a; }
+#chatSidebar.dark-mode .sidebar-item:hover { background: #1e293b; }
+#chatSidebar.dark-mode .sidebar-item.active-session { background: #1e3a5f; }
+#chatSidebar.dark-mode .sidebar-item-icon { background: #1e293b; }
+#chatSidebar.dark-mode .sidebar-item-title { color: #e2e8f0; }
+#chatSidebar.dark-mode .sidebar-item-time { color: #64748b; }
+#chatSidebar.dark-mode .sidebar-empty { color: #64748b; }
+
+/* Elegant in-app toast, replaces jarring native alert() popups */
+#chatToast {
+    position: fixed;
+    left: 50%;
+    bottom: 90px;
+    transform: translateX(-50%) translateY(20px);
+    background: #1e293b;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 14px;
+    font-size: 13.5px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    z-index: 3000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    max-width: 85%;
+    text-align: center;
+    direction: rtl;
+}
+#chatToast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
 </style>
 </head>
 <body>
@@ -900,22 +983,27 @@ body { margin: 0; font-family: Arial, sans-serif; }
 </div>
 
 <div id="page-chat" class="spa-page">
-  <div style="max-width:480px; margin:0 auto; height:100vh; display:flex; flex-direction:column; font-family:Arial, sans-serif; background:#eef2f9;">
+  <div id="chatRoot" style="max-width:480px; margin:0 auto; height:100vh; display:flex; flex-direction:column; font-family:Arial, sans-serif;">
     <div style="background:linear-gradient(135deg, #1e40af, #3b82f6); color:white; padding:16px; text-align:center; font-size:19px; font-weight:bold; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 10px rgba(30,64,175,0.25); z-index:2;">
       <button type="button" onclick="spaShowPage('home')" style="background:rgba(255,255,255,0.15); border:none; color:white; font-size:20px; cursor:pointer; padding:0; margin:0; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center;">←</button>
       <span>🤖 AI Chat Assistant</span>
-      <button type="button" id="chatSidebarToggleBtn" onclick="openChatSidebar()" title="Recent Chats">☰</button>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button type="button" id="chatDarkToggleBtn" onclick="toggleChatDarkMode()" title="Dark Mode" aria-label="Toggle dark mode">🌙</button>
+        <button type="button" id="chatSidebarToggleBtn" onclick="openChatSidebar()" title="Recent Chats">☰</button>
+      </div>
     </div>
     <div id="chatMessages" style="flex:1; overflow-y:auto; padding:16px;"></div>
-    <div style="display:flex; align-items:center; gap:8px; padding:12px; background:white; border-top:1px solid #eee; box-shadow:0 -2px 10px rgba(0,0,0,0.04);">
+    <div class="chat-input-bar" style="display:flex; align-items:center; gap:8px; padding:12px; background:white; border-top:1px solid #eee; box-shadow:0 -2px 10px rgba(0,0,0,0.04);">
       <input type="text" id="chatInput" placeholder="Apna sawal likhein..." dir="auto"
         style="flex:1; padding:13px 16px; border-radius:22px; border:1.5px solid #dde3f0; font-size:15px; background:#f8fafc;">
-      <button type="button" id="chatMicBtn" onclick="startChatVoiceInput()" title="آواز سے لکھیں"
+      <button type="button" id="chatMicBtn" class="speak-btn" onclick="startChatVoiceInput()" title="آواز سے لکھیں"
         style="background:#eef2ff; color:#1e40af; border:none; border-radius:50%; width:44px; height:44px; min-width:44px; font-size:18px; cursor:pointer; margin:0; padding:0; display:flex; align-items:center; justify-content:center;">🎙️</button>
       <button type="button" onclick="sendChatMessage()"
         style="background:linear-gradient(135deg, #1e40af, #3b82f6); color:white; border:none; border-radius:50%; width:44px; height:44px; min-width:44px; font-size:18px; cursor:pointer; margin:0; padding:0; box-shadow:0 2px 8px rgba(30,64,175,0.3);">➤</button>
     </div>
   </div>
+
+  <div id="chatToast"></div>
 
   <div id="chatSidebarOverlay" onclick="closeChatSidebar()"></div>
   <div id="chatSidebar">
@@ -976,8 +1064,13 @@ function spaShowPage(pageName) {
     }
     window.scrollTo(0, 0);
 
-    if (pageName === 'chat' && typeof startChatConversation === 'function') {
-        startChatConversation();
+    if (pageName === 'chat') {
+        if (typeof applyChatDarkMode === 'function' && typeof isChatDarkModeOn === 'function') {
+            applyChatDarkMode(isChatDarkModeOn());
+        }
+        if (typeof startChatConversation === 'function') {
+            startChatConversation();
+        }
     }
 }
 
@@ -2281,6 +2374,47 @@ function saveChatUserName(name) {
 
 // ---- CHAT MEMORY: anonymous per-device ID (no login needed) so past chats
 // can be listed/reopened from the "Recent Chats" sidebar. ----
+// ---- CHAT: DARK MODE (separate preference from the Home page's dark mode,
+// persisted per device so it stays set between visits) ----
+function isChatDarkModeOn() {
+    try {
+        return localStorage.getItem("ppChatDarkMode") === "1";
+    } catch (e) {
+        return !!window.__ppChatDarkMode;
+    }
+}
+
+function applyChatDarkMode(on) {
+    const root = document.getElementById("chatRoot");
+    const sidebar = document.getElementById("chatSidebar");
+    const btn = document.getElementById("chatDarkToggleBtn");
+    if (root) root.classList.toggle("dark-mode", on);
+    if (sidebar) sidebar.classList.toggle("dark-mode", on);
+    if (btn) btn.textContent = on ? "☀️" : "🌙";
+}
+
+function toggleChatDarkMode() {
+    const newState = !isChatDarkModeOn();
+    try {
+        localStorage.setItem("ppChatDarkMode", newState ? "1" : "0");
+    } catch (e) {
+        window.__ppChatDarkMode = newState;
+    }
+    applyChatDarkMode(newState);
+}
+
+// ---- CHAT: elegant in-app toast (replaces native alert() popups, which felt
+// jarring/cheap for a "luxury" chat experience) ----
+let chatToastTimer = null;
+function showChatToast(message) {
+    const toast = document.getElementById("chatToast");
+    if (!toast) { alert(message); return; } // safe fallback if markup somehow missing
+    toast.textContent = message;
+    toast.classList.add("show");
+    if (chatToastTimer) clearTimeout(chatToastTimer);
+    chatToastTimer = setTimeout(() => toast.classList.remove("show"), 3200);
+}
+
 function getDeviceId() {
     try {
         let id = localStorage.getItem("ppDeviceId");
@@ -2330,9 +2464,9 @@ function renderChatMessages() {
               "<button type=\"button\" onclick=\"speakChatMessage(" + i + ", this)\" style=\"background:#eef2ff; border:none; color:#1e40af; border-radius:14px; padding:4px 11px; font-size:12px; cursor:pointer; margin:0; width:auto;\">🔊 سنیں</button>" +
               "</div>"
             : "";
-        const bubble = "<div style=\"max-width:78%; padding:11px 15px; border-radius:" + (isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px") + "; background:" + (isUser ? "linear-gradient(135deg, #1e40af, #3b82f6)" : "white") + "; color:" + (isUser ? "white" : "#1f2937") + "; box-shadow:0 1px 4px rgba(0,0,0,0.1); border:" + (isUser ? "none" : "1px solid rgba(0,0,0,0.05)") + "; text-align:right; direction:rtl; white-space:pre-wrap; font-size:14.5px; line-height:1.6;\">" +
+        const bubble = "<div class=\"chat-bubble-in" + (isUser ? "" : " bot-bubble") + "\" style=\"max-width:78%; padding:11px 15px; border-radius:" + (isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px") + "; background:" + (isUser ? "linear-gradient(135deg, #1e40af, #3b82f6)" : "white") + "; color:" + (isUser ? "white" : "#1f2937") + "; box-shadow:0 2px 8px rgba(30,41,59,0.1); border:" + (isUser ? "none" : "1px solid rgba(0,0,0,0.05)") + "; text-align:right; direction:rtl; white-space:pre-wrap; font-size:14.5px; line-height:1.6;\">" +
             escapeHtml(m.content) + speakBtn + "</div>";
-        const avatar = !isUser ? "<div style=\"width:28px; height:28px; border-radius:50%; background:#eef2ff; display:flex; align-items:center; justify-content:center; font-size:15px; margin-left:6px; flex-shrink:0;\">🤖</div>" : "";
+        const avatar = !isUser ? "<div class=\"bot-avatar\" style=\"width:28px; height:28px; border-radius:50%; background:#eef2ff; display:flex; align-items:center; justify-content:center; font-size:15px; margin-left:6px; flex-shrink:0;\">🤖</div>" : "";
         return "<div style=\"display:flex; justify-content:" + (isUser ? "flex-end" : "flex-start") + "; align-items:flex-end; margin-bottom:12px;\">" +
             (isUser ? bubble : avatar + bubble) + "</div>";
     }).join("");
@@ -2394,7 +2528,7 @@ async function loadChatSessionsList() {
     }
 }
 
-async function loadChatSession(sessionId) {
+async function loadChatSession(sessionId, silent) {
     try {
         const response = await fetch("/api/chat-sessions/" + encodeURIComponent(sessionId) + "?deviceId=" + encodeURIComponent(getDeviceId()));
         const json = await response.json();
@@ -2403,13 +2537,23 @@ async function loadChatSession(sessionId) {
             setCurrentSessionId(sessionId);
             renderChatMessages();
             closeChatSidebar();
-        } else {
-            alert("Ye chat load nahi ho saki, shayad delete ho chuki hai۔");
+            return true;
+        }
+        // Session not found (e.g. server restarted and cleared it) — clear the
+        // stale reference so we don't keep trying it, and only bother the user
+        // with an alert if THEY explicitly tapped it in the sidebar. During a
+        // silent auto-resume (app just opened), fail quietly and start fresh.
+        setCurrentSessionId(null);
+        if (!silent) {
+            showChatToast("Ye chat load nahi ho saki, shayad delete ho chuki hai۔");
             loadChatSessionsList();
         }
+        return false;
     } catch (err) {
         console.error("Load chat session error:", err);
-        alert("Chat load karne mein masla hua۔");
+        setCurrentSessionId(null);
+        if (!silent) showChatToast("Chat load karne mein masla hua۔");
+        return false;
     }
 }
 
@@ -2434,12 +2578,13 @@ async function deleteChatSession(event, sessionId) {
                 startNewChat();
             }
             loadChatSessionsList();
+            showChatToast("Chat delete ho gayi۔");
         } else {
-            alert("Delete nahi ho saka۔");
+            showChatToast("Delete nahi ho saka۔");
         }
     } catch (err) {
         console.error("Delete chat session error:", err);
-        alert("Delete karne mein masla hua۔");
+        showChatToast("Delete karne mein masla hua۔");
     }
 }
 
@@ -2535,12 +2680,13 @@ function startChatConversation() {
     if (chatHistory.length > 0) return; // already started this session (or loaded from memory)
 
     // CHAT MEMORY: if this device has a last-open chat saved, resume it
-    // automatically instead of always starting from scratch.
+    // automatically instead of always starting from scratch. silent=true here
+    // so an expired/wiped session (e.g. after a server restart) just quietly
+    // falls back to a fresh greeting instead of popping up an alert.
     const savedSessionId = getCurrentSessionId();
     if (savedSessionId) {
-        loadChatSession(savedSessionId).then(() => {
-            if (chatHistory.length === 0) {
-                // session was deleted/expired server-side — fall back to fresh greeting
+        loadChatSession(savedSessionId, true).then((success) => {
+            if (!success) {
                 showFreshGreeting();
             }
         });
