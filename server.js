@@ -2482,64 +2482,68 @@ function handleRequest(req, res) {
                         throw lastError;
                     }
 
-                    // ---- STEP 1: let Gemini REASON about whether it needs a tool ----
-                    const firstResponse = await callGeminiWithRetry({
-                        contents: geminiContents,
-                        systemInstruction: { parts: [{ text: systemPrompt }] },
-                        tools: AGENT_TOOLS,
-                        generationConfig: { maxOutputTokens: 500 }
-                    });
+                    // ---- AGENT LOOP: keep going as long as Gemini keeps asking for
+                    // tools, until it finally produces a text answer. The earlier
+                    // version only allowed ONE tool round — if Gemini needed a
+                    // second lookup (e.g. one search wasn't enough), it had nothing
+                    // to show and chat replied "Maazrat, jawab nahi ban saka" even
+                    // though nothing had actually errored. Capped at 4 steps so a
+                    // confused model can never loop forever or drain quota.
+                    const MAX_AGENT_STEPS = 4;
+                    let agentContents = geminiContents;
+                    let finalReply = null;
 
-                    const firstCandidate = (firstResponse.data.candidates || [])[0];
-                    const firstParts = (firstCandidate && firstCandidate.content && firstCandidate.content.parts) || [];
-                    const functionCallParts = firstParts.filter(p => p.functionCall);
-
-                    let finalReply;
-
-                    if (functionCallParts.length > 0) {
-                        // ---- STEP 2: TOOL/SEARCH — execute whichever tool(s) Gemini asked for ----
-                        console.log(`🤖 Agent chose tool(s): ${functionCallParts.map(p => p.functionCall.name).join(', ')} for message: "${message}"`);
-                        const toolResults = await Promise.all(
-                            functionCallParts.map(p => executeAgentTool(p.functionCall.name, p.functionCall.args || {}))
-                        );
-
-                        // ---- STEP 3: hand the real tool result(s) back so Gemini can write the FINAL smart answer ----
-                        // IMPORTANT: per Gemini's current API, the function result goes
-                        // back with role 'user' (NOT the older/deprecated 'function' role
-                        // — using 'function' here was the exact bug causing every
-                        // tool-based question to silently fail while plain chat worked
-                        // fine). We also echo back each call's "id" when the model
-                        // provided one, since newer models use it to match the response
-                        // to the right call.
-                        const secondResponse = await callGeminiWithRetry({
-                            contents: [
-                                ...geminiContents,
-                                { role: 'model', parts: functionCallParts },
-                                {
-                                    role: 'user',
-                                    parts: functionCallParts.map((p, i) => ({
-                                        functionResponse: {
-                                            name: p.functionCall.name,
-                                            response: toolResults[i],
-                                            ...(p.functionCall.id ? { id: p.functionCall.id } : {})
-                                        }
-                                    }))
-                                }
-                            ],
+                    for (let step = 0; step < MAX_AGENT_STEPS; step++) {
+                        const stepResponse = await callGeminiWithRetry({
+                            contents: agentContents,
                             systemInstruction: { parts: [{ text: systemPrompt }] },
                             tools: AGENT_TOOLS,
                             generationConfig: { maxOutputTokens: 500 }
                         });
 
-                        const secondCandidate = (secondResponse.data.candidates || [])[0];
-                        const secondText = secondCandidate && secondCandidate.content && secondCandidate.content.parts
-                            ? secondCandidate.content.parts.map(p => p.text || '').join('\n')
-                            : '';
-                        finalReply = secondText || 'Maazrat, jawab nahi ban saka.';
-                    } else {
-                        // ---- No tool needed — Gemini answered directly, ONE API call total ----
-                        const directText = firstParts.map(p => p.text || '').join('\n');
-                        finalReply = directText || 'Maazrat, jawab nahi ban saka.';
+                        const stepCandidate = (stepResponse.data.candidates || [])[0];
+                        const stepParts = (stepCandidate && stepCandidate.content && stepCandidate.content.parts) || [];
+                        const stepFunctionCalls = stepParts.filter(p => p.functionCall);
+
+                        if (stepFunctionCalls.length === 0) {
+                            // Gemini gave a final text answer — agent loop is done.
+                            const stepText = stepParts.map(p => p.text || '').join('\n');
+                            if (stepText) finalReply = stepText;
+                            break;
+                        }
+
+                        // Gemini wants (more) tool(s) — run them and feed results back in,
+                        // then loop again so it can either answer or ask for yet another tool.
+                        console.log(`🤖 Agent step ${step + 1}: tool(s) ${stepFunctionCalls.map(p => p.functionCall.name).join(', ')} for message: "${message}"`);
+                        const stepToolResults = await Promise.all(
+                            stepFunctionCalls.map(p => executeAgentTool(p.functionCall.name, p.functionCall.args || {}))
+                        );
+
+                        // IMPORTANT: per Gemini's current API, the function result goes
+                        // back with role 'user' (NOT the older/deprecated 'function' role
+                        // — using 'function' here was an earlier bug that broke every
+                        // tool-based question while plain chat worked fine). We also
+                        // echo back each call's "id" when the model provided one, since
+                        // newer models use it to match the response to the right call.
+                        agentContents = [
+                            ...agentContents,
+                            { role: 'model', parts: stepFunctionCalls },
+                            {
+                                role: 'user',
+                                parts: stepFunctionCalls.map((p, i) => ({
+                                    functionResponse: {
+                                        name: p.functionCall.name,
+                                        response: stepToolResults[i],
+                                        ...(p.functionCall.id ? { id: p.functionCall.id } : {})
+                                    }
+                                }))
+                            }
+                        ];
+                    }
+
+                    if (!finalReply) {
+                        console.log(`⚠️ Agent loop ended without final text for message: "${message}" (hit step cap or empty response)`);
+                        finalReply = 'Maazrat, jawab nahi ban saka.';
                     }
 
                     const usedCount = incrementChatUsage(clientIp);
