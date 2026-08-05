@@ -38,6 +38,8 @@ const CONFIG = {
     CACHE_CLEANUP_INTERVAL_MS: 15 * 60 * 1000,        // 15 min
     MAX_SEARCH_HISTORY: 500,
     MAX_CHAT_SESSIONS_PER_DEVICE: 30,
+    MAX_VISITORS_STORED: 1000,
+    VISITOR_DEDUPE_WINDOW_MS: 30 * 60 * 1000, // don't log the same IP again within 30 min
     MAX_MESSAGES_PER_SESSION: 100,
     RATE_LIMIT_WINDOW_MS: 60 * 1000,
     RATE_LIMIT_MAX_REQUESTS: 60,
@@ -664,6 +666,7 @@ function ensureSchema(db) {
     if (!db.searchHistory) db.searchHistory = [];
     if (!db.predictions) db.predictions = {};
     if (!db.chatSessions) db.chatSessions = [];
+    if (!db.visitors) db.visitors = [];
     if (!db.analytics) {
         db.analytics = {
             dailyStats: {},
@@ -1111,6 +1114,103 @@ async function fetchCityPrice(canonicalKey, cityKey) {
 // it does NOT block cloud/datacenter IPs the way DuckDuckGo often does. This
 // gives 100% reliable answers for "mausam kaisa hai" / "kya waqt hai" type
 // questions without depending on fragile HTML scraping.
+// ============ VISITOR ANALYTICS: DEVICE + LOCATION TRACKING ============
+// Lightweight, dependency-free User-Agent parsing — good enough to answer
+// "phone ya computer?", "kaunsa browser?" without pulling in a heavy npm
+// library. Not exhaustive (no npm parser is either), but covers the vast
+// majority of real traffic (Android/iPhone/Windows/Mac + Chrome/Safari/etc).
+function parseUserAgent(uaString) {
+    const ua = String(uaString || '');
+    let device = 'Desktop';
+    if (/Mobi|Android/i.test(ua) && !/Tablet|iPad/i.test(ua)) device = 'Mobile';
+    else if (/Tablet|iPad/i.test(ua)) device = 'Tablet';
+
+    let os = 'Unknown';
+    if (/Android/i.test(ua)) os = 'Android';
+    else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+    else if (/Windows/i.test(ua)) os = 'Windows';
+    else if (/Mac OS X/i.test(ua)) os = 'macOS';
+    else if (/Linux/i.test(ua)) os = 'Linux';
+
+    let browser = 'Other';
+    if (/Edg\//i.test(ua)) browser = 'Edge';
+    else if (/OPR\/|Opera/i.test(ua)) browser = 'Opera';
+    else if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) browser = 'Chrome';
+    else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+    else if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) browser = 'Safari';
+
+    return { device, os, browser };
+}
+
+// Extracts the REAL visitor IP — Render (and most hosts) put the app behind
+// a proxy, so req.socket.remoteAddress is the proxy's own internal IP, not
+// the visitor's. The actual client IP comes in the x-forwarded-for header
+// (first entry = original client) when present.
+function getClientIp(req) {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) return forwarded.split(',')[0].trim();
+    return req.socket.remoteAddress || 'unknown';
+}
+
+// Free, no-API-key IP geolocation (ipapi.co) — gives approximate city/country
+// only (same precision as any standard web analytics tool), never exact GPS.
+// Fails silently (visitor still gets logged, just without location) if the
+// service is unreachable or the IP is local/private (e.g. during testing).
+async function getLocationFromIp(ip) {
+    try {
+        if (!ip || ip === 'unknown' || ip.startsWith('127.') || ip.startsWith('::1') || ip.startsWith('10.') || ip.startsWith('192.168.')) {
+            return null;
+        }
+        const response = await axios.get(`https://ipapi.co/${ip}/json/`, { timeout: 3000 });
+        const d = response.data;
+        if (!d || d.error) return null;
+        return { city: d.city || null, region: d.region || null, country: d.country_name || null };
+    } catch (e) {
+        console.error(`⚠️ IP location lookup failed for ${ip}:`, e.message);
+        return null;
+    }
+}
+
+const recentVisitorIps = new Map(); // ip -> last-logged timestamp (dedupe window)
+
+async function recordVisitor(req) {
+    try {
+        const ip = getClientIp(req);
+        const lastLogged = recentVisitorIps.get(ip);
+        if (lastLogged && Date.now() - lastLogged < CONFIG.VISITOR_DEDUPE_WINDOW_MS) {
+            return; // same visitor within the dedupe window — don't spam entries
+        }
+        recentVisitorIps.set(ip, Date.now());
+
+        const { device, os, browser } = parseUserAgent(req.headers['user-agent']);
+        const location = await getLocationFromIp(ip);
+
+        await enqueueUpdate({
+            key: `visitor:${Date.now()}:${Math.random()}`,
+            dedupe: false,
+            run: async () => {
+                const db = readDB();
+                db.visitors.push({
+                    ip,
+                    device,
+                    os,
+                    browser,
+                    city: location ? location.city : null,
+                    region: location ? location.region : null,
+                    country: location ? location.country : null,
+                    timestamp: new Date().toISOString()
+                });
+                if (db.visitors.length > CONFIG.MAX_VISITORS_STORED) {
+                    db.visitors = db.visitors.slice(-CONFIG.MAX_VISITORS_STORED);
+                }
+                writeDB(db);
+            }
+        });
+    } catch (e) {
+        console.error('⚠️ Visitor tracking failed (page still served normally):', e.message);
+    }
+}
+
 async function getWeatherAndTime(cityName) {
     try {
         const geoRes = await axios.get('https://geocoding-api.open-meteo.com/v1/search', {
@@ -1808,6 +1908,10 @@ function handleRequest(req, res) {
     // kisi bhi browser mein seedha http://<IP>:5000 khol kar poori app chal sakti hai,
     // aur "content://" ya "file://" se kholne wale purane errors khatam ho jayenge.
     if ((pathname === '/' || pathname === '/index.html') && req.method === 'GET') {
+        // Fire-and-forget: never blocks/slows the page load, and any failure
+        // (e.g. geolocation service down) is caught internally and ignored.
+        recordVisitor(req).catch(() => {});
+
         const indexPath = path.join(__dirname, 'index.html');
         fs.readFile(indexPath, 'utf8', (err, html) => {
             if (err) {
@@ -2273,6 +2377,37 @@ function handleRequest(req, res) {
                 res.end(JSON.stringify({ success: false, message: 'Internal error' }));
             }
         });
+        return;
+    }
+
+    // ============ VISITOR ANALYTICS: WHO'S USING THE APP ============
+    if (pathname === '/api/visitors' && req.method === 'GET') {
+        const db = readDB();
+        const visitors = [...db.visitors].reverse(); // most recent first
+
+        // Quick summary breakdowns for the admin dashboard.
+        function tally(list, key) {
+            const counts = {};
+            list.forEach(v => {
+                const val = v[key] || 'Unknown';
+                counts[val] = (counts[val] || 0) + 1;
+            });
+            return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([label, count]) => ({ label, count }));
+        }
+
+        res.writeHead(200);
+        res.end(JSON.stringify({
+            success: true,
+            totalVisits: visitors.length,
+            data: visitors.slice(0, 200), // cap payload size
+            summary: {
+                devices: tally(visitors, 'device'),
+                browsers: tally(visitors, 'browser'),
+                os: tally(visitors, 'os'),
+                countries: tally(visitors, 'country'),
+                cities: tally(visitors, 'city')
+            }
+        }));
         return;
     }
 
