@@ -428,6 +428,13 @@ body { margin: 0; font-family: Arial, sans-serif; }
 #page-admin #productList { margin-top: 10px; }
 #page-admin .count-badge { font-size: 12.5px; color: #6b7280; margin-top: 8px; font-weight: 500; }
 #page-admin p.hint { font-size: 12.5px; color: #6b7280; line-height: 1.6; background: #f5f8ff; padding: 10px 12px; border-radius: 9px; border: 1px solid #e5e9f5; }
+#page-admin .visitor-summary-card { background: #f8fafc; border: 1px solid #e5e9f5; border-radius: 12px; padding: 12px; }
+#page-admin .visitor-summary-title { font-size: 12px; font-weight: 700; color: #6b7280; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.3px; }
+#page-admin .visitor-summary-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; color: #1f2937; }
+#page-admin .visitor-summary-row b { color: #1e3a8a; }
+#page-admin .visitor-recent-row { padding: 10px 0; border-bottom: 1px solid #f0f2f8; font-size: 13px; line-height: 1.6; }
+#page-admin .visitor-recent-row:last-child { border-bottom: none; }
+#page-admin .visitor-recent-badge { display: inline-block; background: #eef2ff; color: #1e3a8a; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; margin-right: 4px; }
 
 #page-login { background: linear-gradient(135deg, #1e40af, #3b82f6); min-height: 100vh; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; }
 #page-login .login-hero { text-align: center; padding: 44px 24px 28px; color: white; }
@@ -926,6 +933,24 @@ body { margin: 0; font-family: Arial, sans-serif; }
                 <button onclick="processPbsExcel()" style="background:#15803d;">Upload &amp; Update Official Rates</button>
                 <div class="msg" id="pbsMsg"></div>
                 <div id="pbsLog" style="font-size:12px; color:#555; margin-top:8px; max-height:160px; overflow-y:auto; background: #f9fafb; padding: 5px; border-radius: 6px;"></div>
+            </div>
+
+            <div class="card">
+                <h3>👀 Kaun App Istemal Kar Raha Hai</h3>
+                <p class="hint">Har visit ka approximate device, browser aur location (IP se, kisi ki exact GPS nahi) — bilkul waisa jaisa Google Analytics dikhata hai.</p>
+
+                <div class="stats-bar" id="visitorTotalBar" style="margin-top:14px;">
+                    <div class="stat-box">
+                        <div class="num" id="visitorTotalNum">—</div>
+                        <div class="label">Total Visits</div>
+                    </div>
+                </div>
+
+                <div id="visitorSummaryGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;"></div>
+
+                <h4 style="margin:20px 0 8px; font-size:14.5px; color:#1e3a8a;">Aakhri Visitors</h4>
+                <div id="visitorRecentList" style="font-size:13.5px;">Loading...</div>
+                <button type="button" class="secondary" onclick="loadVisitors()" style="margin-top:12px;">🔄 Refresh Karein</button>
             </div>
 
             <div class="card">
@@ -1936,6 +1961,7 @@ auth.onAuthStateChanged((user) => {
         document.getElementById("logoutBtn").classList.remove("hidden");
         document.getElementById("userTag").textContent = user.email;
         loadProducts();
+        loadVisitors();
     } else {
         document.getElementById("loginCard").classList.remove("hidden");
         document.getElementById("adminSection").classList.add("hidden");
@@ -1974,6 +2000,58 @@ function doGoogleLogin() {
 }
 
 function doLogout() { auth.signOut(); }
+
+async function loadVisitors() {
+    const totalEl = document.getElementById("visitorTotalNum");
+    const summaryGrid = document.getElementById("visitorSummaryGrid");
+    const recentList = document.getElementById("visitorRecentList");
+    if (!totalEl || !summaryGrid || !recentList) return;
+
+    recentList.textContent = "⏳ Loading...";
+
+    try {
+        const response = await fetch("/api/visitors");
+        const json = await response.json();
+        if (!json.success) {
+            recentList.textContent = "Load nahi ho saka.";
+            return;
+        }
+
+        totalEl.textContent = json.totalVisits.toLocaleString();
+
+        function renderSummaryCard(title, items) {
+            const rows = items.slice(0, 5).map((item) =>
+                "<div class=\"visitor-summary-row\"><span>" + escapeHtml(item.label) + "</span><b>" + item.count + "</b></div>"
+            ).join("") || "<div class=\"visitor-summary-row\" style=\"color:#9ca3af;\">Abhi data nahi hai</div>";
+            return "<div class=\"visitor-summary-card\"><div class=\"visitor-summary-title\">" + title + "</div>" + rows + "</div>";
+        }
+
+        summaryGrid.innerHTML =
+            renderSummaryCard("📱 Device", json.summary.devices) +
+            renderSummaryCard("🌐 Browser", json.summary.browsers) +
+            renderSummaryCard("💻 OS", json.summary.os) +
+            renderSummaryCard("🌍 Mulk (Country)", json.summary.countries);
+
+        if (json.data.length === 0) {
+            recentList.innerHTML = "<p style='color:#9ca3af;'>Abhi tak koi visit record nahi hui.</p>";
+            return;
+        }
+
+        recentList.innerHTML = json.data.slice(0, 30).map((v) => {
+            const locationText = [v.city, v.region, v.country].filter(Boolean).join(", ") || "Location maloom nahi";
+            const time = new Date(v.timestamp).toLocaleString("en-PK", { dateStyle: "medium", timeStyle: "short" });
+            return "<div class=\"visitor-recent-row\">" +
+                "<span class=\"visitor-recent-badge\">" + escapeHtml(v.device) + "</span>" +
+                "<span class=\"visitor-recent-badge\">" + escapeHtml(v.os) + "</span>" +
+                "<span class=\"visitor-recent-badge\">" + escapeHtml(v.browser) + "</span>" +
+                "<br>📍 " + escapeHtml(locationText) + " · 🕐 " + time +
+                "</div>";
+        }).join("");
+    } catch (err) {
+        console.error("Visitors load error:", err);
+        recentList.textContent = "⚠️ Load nahi ho saka.";
+    }
+}
 
 function loadProducts() {
     document.getElementById("productList").innerHTML = "⏳ Loading...";
