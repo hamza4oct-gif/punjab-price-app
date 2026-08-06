@@ -1068,32 +1068,37 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 const storage = firebase.storage();
 
-// ---- GOOGLE LOGIN (redirect flow): after signInWithRedirect() sends the
-// browser to Google and back, THIS runs once on the page reload to pick up
-// the result. auth.onAuthStateChanged (below, in the admin script) already
-// handles showing the Admin section once logged in; this just also routes
-// customer-page Google logins to Home and shows a friendly message either way.
-auth.getRedirectResult().then(function (result) {
-    if (result && result.user) {
-        let intent = null;
-        try {
-            intent = localStorage.getItem('ppGoogleLoginIntent');
-            localStorage.removeItem('ppGoogleLoginIntent');
-        } catch (e) { /* ignore if storage unavailable */ }
+// ---- LOGIN SUCCESS: single, reliable source of truth ----
+// Instead of each login method (email/password, Google popup, Google
+// redirect) trying to detect "success" itself and manually navigating —
+// which breaks depending on timing quirks, especially around redirects —
+// this ONE global listener is Firebase's own recommended pattern: it fires
+// whenever the user's auth state actually changes, no matter which method
+// caused it, and it's the only place that decides what happens next for the
+// customer-facing login page. (The Admin Panel has its own separate
+// onAuthStateChanged listener further down that reveals the admin section —
+// both listeners can coexist safely.)
+let previousAuthUid = null;
+auth.onAuthStateChanged(function (user) {
+    const justLoggedIn = user && !previousAuthUid;
+    previousAuthUid = user ? user.uid : null;
 
-        if (intent === 'customer') {
-            const msg = document.getElementById('loginPageMsg');
-            if (msg) {
-                msg.style.color = 'green';
-                msg.innerHTML = 'Login Successful! Redirecting...';
-            }
-            setTimeout(function () { spaShowPage('home'); }, 900);
+    if (justLoggedIn && typeof isPageActive === 'function' && isPageActive('login')) {
+        const msg = document.getElementById('loginPageMsg');
+        if (msg) {
+            msg.style.color = 'green';
+            msg.innerHTML = 'Login Successful! Redirecting...';
         }
-        // intent === 'admin' needs no extra action — the admin panel's own
-        // auth.onAuthStateChanged listener already reveals the admin section
-        // automatically as soon as Firebase confirms the login.
+        setTimeout(function () {
+            if (typeof spaShowPage === 'function') spaShowPage('home');
+        }, 900);
     }
-}).catch(function (error) {
+});
+
+// Surfaces a clear error message if a Google redirect login itself failed
+// (e.g. popup blocked, network issue, cancelled) — success is NOT handled
+// here anymore (see the global onAuthStateChanged above), only failures.
+auth.getRedirectResult().catch(function (error) {
     console.error('Google redirect login error:', error);
     const msg = document.getElementById('loginPageMsg') || document.getElementById('loginMsg');
     if (msg) {
@@ -2025,11 +2030,9 @@ function doGoogleLogin() {
     const provider = new firebase.auth.GoogleAuthProvider();
     // signInWithRedirect (not signInWithPopup) — popups are unreliable on
     // mobile browsers (get silently blocked/lost mid-flow). Redirect is
-    // Firebase's own recommended approach for mobile. The result is picked
-    // up by handleGoogleRedirectResult() on page load, see below.
-    try {
-        localStorage.setItem("ppGoogleLoginIntent", "admin");
-    } catch (e) { /* ignore if storage unavailable */ }
+    // Firebase's own recommended approach for mobile. Once Firebase confirms
+    // the login, the Admin Panel's own auth.onAuthStateChanged listener below
+    // automatically reveals the admin section — no manual navigation needed.
     auth.signInWithRedirect(provider);
 }
 
@@ -2390,13 +2393,12 @@ function loginWithGoogle() {
     msg.innerHTML = 'Google se login ho raha hai...';
     var provider = new firebase.auth.GoogleAuthProvider();
     // signInWithRedirect (not signInWithPopup) — this was the actual bug:
-    // popups silently break on many mobile browsers mid-flow (page shows
-    // "Login Successful" but never actually navigates anywhere). Redirect is
-    // Firebase's own recommended, reliable approach for mobile. The result is
-    // picked up by handleGoogleRedirectResult() on page load, see below.
-    try {
-        localStorage.setItem('ppGoogleLoginIntent', 'customer');
-    } catch (e) { /* ignore if storage unavailable */ }
+    // popups silently break on many mobile browsers mid-flow. Redirect is
+    // Firebase's own recommended, reliable approach for mobile. Once
+    // Firebase confirms the login, the global auth.onAuthStateChanged
+    // listener (defined near the top of the file) reliably shows the
+    // success message and navigates home — no matter which login method
+    // (email/password, Google popup, or Google redirect) was used.
     firebase.auth().signInWithRedirect(provider);
 }
 
@@ -2417,11 +2419,9 @@ function login() {
 
   firebase.auth().signInWithEmailAndPassword(email, password)
     .then((userCredential) => {
-      msg.style.color = "green";
-      msg.innerHTML = "Login Successful! Redirecting...";
-      setTimeout(() => {
-        spaShowPage('home');
-      }, 1200);
+      // Success message + navigation is handled centrally by the global
+      // auth.onAuthStateChanged listener (near the top of the file) —
+      // that's the single reliable source of truth for every login method.
     })
     .catch((error) => {
       msg.style.color = "red";
