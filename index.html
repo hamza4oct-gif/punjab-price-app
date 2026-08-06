@@ -7,6 +7,17 @@
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#1e40af">
 <link rel="apple-touch-icon" href="/icon-192.png">
+
+<!-- Google Analytics (GA4) — measures views, visitors, session time,
+     real-time users, traffic source, etc. Official Google snippet, free. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-13M53R1VE5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-13M53R1VE5');
+</script>
+
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Arial, sans-serif; }
@@ -1131,6 +1142,17 @@ function spaShowPage(pageName) {
         window.location.hash = '/' + pageName;
     }
     window.scrollTo(0, 0);
+
+    // Google Analytics: this app is a single-page app, so switching between
+    // Home/Search/Chat/etc. does NOT trigger a normal page reload — without
+    // this, GA would only ever see ONE page view per visit no matter how
+    // much someone uses the app.
+    if (typeof gtag === 'function') {
+        gtag('event', 'page_view', {
+            page_title: pageName,
+            page_path: '/' + pageName
+        });
+    }
 
     if (pageName === 'chat') {
         if (typeof applyChatDarkMode === 'function' && typeof isChatDarkModeOn === 'function') {
