@@ -1074,23 +1074,27 @@ const storage = firebase.storage();
 // which breaks depending on timing quirks, especially around redirects —
 // this ONE global listener is Firebase's own recommended pattern: it fires
 // whenever the user's auth state actually changes, no matter which method
-// caused it, and it's the only place that decides what happens next for the
-// customer-facing login page. (The Admin Panel has its own separate
-// onAuthStateChanged listener further down that reveals the admin section —
-// both listeners can coexist safely.)
+// caused it. On success it does a HARD browser redirect (window.location),
+// NOT the SPA's internal JS routing — a full page reload can never get
+// stuck on internal app state the way spaShowPage() could, so this is the
+// simplest, most bulletproof way to guarantee it actually moves on.
 let previousAuthUid = null;
 auth.onAuthStateChanged(function (user) {
     const justLoggedIn = user && !previousAuthUid;
     previousAuthUid = user ? user.uid : null;
 
-    if (justLoggedIn && typeof isPageActive === 'function' && isPageActive('login')) {
+    const onLoginPage = document.getElementById('page-login') &&
+        document.getElementById('page-login').classList.contains('active');
+
+    if (justLoggedIn && onLoginPage) {
         const msg = document.getElementById('loginPageMsg');
         if (msg) {
             msg.style.color = 'green';
             msg.innerHTML = 'Login Successful! Redirecting...';
         }
         setTimeout(function () {
-            if (typeof spaShowPage === 'function') spaShowPage('home');
+            window.location.hash = '/home';
+            window.location.reload();
         }, 900);
     }
 });
