@@ -1068,6 +1068,40 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 const storage = firebase.storage();
 
+// ---- GOOGLE LOGIN (redirect flow): after signInWithRedirect() sends the
+// browser to Google and back, THIS runs once on the page reload to pick up
+// the result. auth.onAuthStateChanged (below, in the admin script) already
+// handles showing the Admin section once logged in; this just also routes
+// customer-page Google logins to Home and shows a friendly message either way.
+auth.getRedirectResult().then(function (result) {
+    if (result && result.user) {
+        let intent = null;
+        try {
+            intent = localStorage.getItem('ppGoogleLoginIntent');
+            localStorage.removeItem('ppGoogleLoginIntent');
+        } catch (e) { /* ignore if storage unavailable */ }
+
+        if (intent === 'customer') {
+            const msg = document.getElementById('loginPageMsg');
+            if (msg) {
+                msg.style.color = 'green';
+                msg.innerHTML = 'Login Successful! Redirecting...';
+            }
+            setTimeout(function () { spaShowPage('home'); }, 900);
+        }
+        // intent === 'admin' needs no extra action — the admin panel's own
+        // auth.onAuthStateChanged listener already reveals the admin section
+        // automatically as soon as Firebase confirms the login.
+    }
+}).catch(function (error) {
+    console.error('Google redirect login error:', error);
+    const msg = document.getElementById('loginPageMsg') || document.getElementById('loginMsg');
+    if (msg) {
+        msg.style.color = '#dc2626';
+        msg.textContent = 'Google login mein masla hua: ' + error.message;
+    }
+});
+
 function escapeHtml(str) {
     const div = document.createElement("div");
     div.textContent = str;
@@ -1989,14 +2023,14 @@ function doGoogleLogin() {
     msg.textContent = "⏳ Google se login ho raha hai...";
     msg.style.color = "#1e40af";
     const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider)
-        .then((result) => {
-            msg.textContent = "";
-        })
-        .catch((err) => {
-            msg.textContent = "❌ " + err.message;
-            msg.style.color = "#dc2626";
-        });
+    // signInWithRedirect (not signInWithPopup) — popups are unreliable on
+    // mobile browsers (get silently blocked/lost mid-flow). Redirect is
+    // Firebase's own recommended approach for mobile. The result is picked
+    // up by handleGoogleRedirectResult() on page load, see below.
+    try {
+        localStorage.setItem("ppGoogleLoginIntent", "admin");
+    } catch (e) { /* ignore if storage unavailable */ }
+    auth.signInWithRedirect(provider);
 }
 
 function doLogout() { auth.signOut(); }
@@ -2355,20 +2389,15 @@ function loginWithGoogle() {
     msg.style.color = 'blue';
     msg.innerHTML = 'Google se login ho raha hai...';
     var provider = new firebase.auth.GoogleAuthProvider();
-    firebase.auth().signInWithPopup(provider)
-        .then(function (result) {
-            if (result && result.user) {
-                msg.style.color = 'green';
-                msg.innerHTML = 'Login Successful! Redirecting...';
-                setTimeout(function () {
-                    spaShowPage('home');
-                }, 1200);
-            }
-        })
-        .catch(function (error) {
-            msg.style.color = 'red';
-            msg.innerHTML = 'Error: ' + error.message;
-        });
+    // signInWithRedirect (not signInWithPopup) — this was the actual bug:
+    // popups silently break on many mobile browsers mid-flow (page shows
+    // "Login Successful" but never actually navigates anywhere). Redirect is
+    // Firebase's own recommended, reliable approach for mobile. The result is
+    // picked up by handleGoogleRedirectResult() on page load, see below.
+    try {
+        localStorage.setItem('ppGoogleLoginIntent', 'customer');
+    } catch (e) { /* ignore if storage unavailable */ }
+    firebase.auth().signInWithRedirect(provider);
 }
 
 function login() {
